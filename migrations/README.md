@@ -1,8 +1,9 @@
 # D1 migrations
 
-Add numbered SQL migrations here once the first feature's data model is agreed.
-There is intentionally no application schema in the foundation.
+`0001_collections.sql` creates collections and items and seeds the default Inbox.
+It uses D1 foreign keys and indexes for collection/date ordering.
 
-Create a migration with `npx wrangler d1 migrations create vault <name>` and apply
-locally with `npm run db:migrate:local`. Local D1 and R2 data live under
-`.wrangler/` and must stay out of Git.
+Run `npm run db:migrate:local` before local development. For deployment, provision
+the real database, update `wrangler.jsonc`, then run
+`npx wrangler d1 migrations apply vault --remote` with the intended account.
+Do not edit an applied migration; add a numbered migration for subsequent changes.

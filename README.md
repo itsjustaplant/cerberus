@@ -1,73 +1,123 @@
 # Vault
 
-A personal collection of bookmarks, links, and images, inspired by are.na.
+A quiet, personal home for links, images, and files. Create collections, save
+things worth keeping, and sort them whenever you’re ready. The responsive dark
+interface uses black, white, and orange, with sharp corners and monospace type
+inspired by Lyra. It uses a sidebar on desktop and bottom navigation on phones.
 
-This repository currently contains the project foundation. Features, acceptance
-criteria, authentication, and the data model will be agreed before implementation.
+## Stack and storage
 
-## Stack
-
-- React Router framework mode with server rendering and TypeScript.
-- Cloudflare Workers through the Cloudflare Vite plugin.
-- D1 (`DB`) for future collection metadata and links.
-- R2 (`IMAGES`) for future image objects.
-- npm with a committed lockfile; Node.js 24 (see `.nvmrc`).
+- React Router, React, TypeScript, and Cloudflare Workers.
+- Base UI for accessible dialogs; Lucide for icons; plain CSS for styling.
+- One D1 database (`DB`) holds collections and all item metadata.
+- One private R2 bucket (`FILES`, `vault-files`) holds uploaded files and images.
+- A seeded **Inbox** collection receives unclassified items. Collections share
+  storage; creating one does not provision another database or bucket.
+- Files are limited to **10 MB each**. JPEG, PNG, WebP, GIF, and AVIF get image
+  previews. Other formats, including SVG and HTML, are served as downloads.
+- Links are stored as URLs. Service integrations and remote previews are deferred.
 
 ## Run locally
 
+Use Node.js 24 (see `.nvmrc`) and npm:
+
 ```sh
 npm ci
-npm run cf:typegen
+npm run db:migrate:local
 npm run dev
 ```
 
-Open the URL printed by Vite (usually http://127.0.0.1:5173).
-The landing page should show **D1 and R2 connected**. Its server loader executes a
-read-only D1 query and lists at most one R2 object to verify both bindings.
-Unknown paths should show the application's 404 page.
+Open the URL printed by Vite, normally http://127.0.0.1:5173. Storage persists in
+`.wrangler/`. No Cloudflare account or cloud resources are needed for development.
+Apply migrations before starting the app for the first time or after schema changes.
 
-Local development uses emulated storage in `.wrangler/`; no Cloudflare account,
-cloud database, or bucket is required. No application tables are created yet.
-Generated Worker and route types are ignored by Git and recreated by typecheck.
+To test from a phone on the same trusted Wi-Fi:
 
 ```sh
-npm run check       # Formatting, generated types, TypeScript, production build
-npm run preview     # Build and serve locally using the Workers runtime
-npm run format     # Format source and configuration
+npm run dev -- --host 0.0.0.0
 ```
 
-## Project layout
+Open the Network URL printed by Vite. Verify creating a collection, saving a
+link, uploading an image and a file, opening/downloading them, moving an Inbox
+item to a collection, and searching/filtering. Check dialogs with the keyboard
+open, portrait/landscape layouts, and bottom navigation on real hardware.
 
-- `app/`: document layout, routes, and styles.
-- `workers/app.ts`: Worker entry and server context.
-- `wrangler.jsonc`: Worker settings and D1/R2 bindings.
-- `migrations/`: future versioned SQL migrations.
+## Capture a link from your phone
 
-## Cloud setup (later)
+`POST /api/capture` deliberately needs **no authentication token**. Send JSON or
+URL-encoded form data from an iOS Shortcut, Android automation, or an HTTP client:
 
-No cloud resources are provisioned and nothing is deployed by initialization.
-The D1 ID in `wrangler.jsonc` is a local placeholder.
+```sh
+curl http://127.0.0.1:5173/api/capture \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com","title":"Something worth keeping"}'
+```
 
-Before deploying, provision D1 and R2 in your own account, replace the placeholder
-ID, and configure a protected domain and owner-only authentication (for example,
-Cloudflare Access). The scaffold has no authentication. `workers_dev` and
-`preview_urls` are disabled to keep generated public Worker URLs off; those flags
-do not provide authentication for a custom domain. Keep the R2 bucket private.
-Never commit credentials; use Worker secrets or ignored `.dev.vars` files.
+Use your LAN or deployed hostname when calling from a phone. Only `url` is
+required. Valid HTTP/HTTPS links always land in Inbox; supplied collection IDs
+are ignored. URLs with embedded credentials are rejected. The endpoint does not
+fetch remote content, accept file uploads, or expose your library.
 
-See [Cloudflare's React Router guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/react-router/)
-for the framework integration.
+Success: `201 {"item":{"id":"…","collection_id":"inbox",…}}`.
+Errors use `{ "error": "…" }` with an appropriate status (`400`, `413`, `415`,
+`429`). Request bodies are limited to 8 KB. The Cloudflare limiter allows 30
+requests per minute per IP per location, with `Retry-After: 60` on rejection.
+This is an approximate local rate limit, not a global quota. Browser cross-origin
+API access is not enabled; native HTTP clients such as Shortcuts work without CORS.
+
+Other endpoints power the UI:
+
+| Endpoint                      | Purpose                                                                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/collections`       | Create with `name` and optional `description`                                                                           |
+| `POST /api/items`             | Save JSON link (`url`, optional `title`, `collection_id`) or multipart file (`file`, optional `title`, `collection_id`) |
+| `PATCH /api/items/:id`        | Move using `collection_id`                                                                                              |
+| `GET /api/files/:id`          | Preview a supported image or download a file                                                                            |
+| `GET /api/files/:id?download` | Force download                                                                                                          |
+
+Lists are server rendered, newest first, with 48 items per page. Search covers
+titles, URLs, and filenames; SQLite’s built-in case folding is ASCII oriented.
+Metadata is parameterized in D1 queries. Failed metadata writes clean up the
+uploaded R2 object. Changing an item’s collection does not duplicate its file.
+
+## Checks
+
+```sh
+npm run check             # Formatting, generated types, TypeScript, production build
+npm run test:integration  # Build and exercise a real local Worker with isolated D1/R2
+npm run format            # Format source and configuration
+```
+
+Integration checks cover collections, Inbox defaults, URL/form capture, moving,
+search, file/image round trips, safe delivery headers, invalid input, upload and
+request limits, same-origin mutation checks, rate limiting, and missing resources.
+Their disposable storage path is printed; they never modify the development library.
+Generated Worker/route types, local storage, and build output are ignored by Git.
+
+## Deployment (not configured yet)
+
+No resources have been provisioned and nothing has been deployed. The D1 ID in
+`wrangler.jsonc` is a placeholder. Provision one D1 database and one private R2
+bucket, update the database ID, and apply migrations remotely before deployment.
+The R2 binding is now `FILES` rather than the scaffold’s `IMAGES` binding.
+
+The app has no owner authentication yet. Before using a public domain, protect
+all UI and API paths with an owner-only access layer (for example Cloudflare
+Access), with only the exact `/api/capture` path exempted. File delivery must
+also stay protected. Same-origin mutation checks do not replace authentication.
+`workers_dev` and `preview_urls` remain disabled; those settings do not secure a
+custom domain. Store secrets in Worker secrets or ignored `.dev.vars` files.
+
+The configured Cloudflare rate-limit namespace ID (`1001`) must be unique to this
+limiter in your account; adjust it if another Worker already uses that namespace.
 
 ## Development and versioning
 
-The initial package version is `0.0.1`, the initial foundation. Use Semantic
-Versioning: patch for compatible fixes, minor for additions, major for breaking
-changes (during `0.x`, minor releases may change the evolving interface).
-Only bump versions and create matching `vX.Y.Z` tags when a release or bump is
-requested. The initial foundation is tagged `v0.0.1`.
+The initial foundation is **0.0.1**, tagged `v0.0.1`. Use Semantic Versioning:
+patch for compatible fixes, minor for additions, major for breaking changes.
+During `0.x`, minor releases may change the evolving interface. Bump the version
+and create a matching `vX.Y.Z` tag only when a release or bump is requested.
 
-Use `main` as the integration branch and conventional task branches such as
-`feat/initialize-vault`. Follow `AGENTS.md`: implement and check, obtain explicit
-user verification, then make a Conventional Commit and merge locally into `main`.
-Push only when requested. The planned foundation commit is
-`chore: initialize vault foundation`.
+Use `main` as the integration branch and conventional task branches. Follow
+`AGENTS.md`: implement, check, obtain explicit user verification, then commit
+using a Conventional Commit and merge locally into `main`. Push only when asked.

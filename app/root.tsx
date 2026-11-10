@@ -14,12 +14,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+        />
+        <meta name="theme-color" content="#080808" />
+        <meta name="color-scheme" content="dark" />
         <Meta />
         <Links />
       </head>
       <body>
-        {children}
+        <div className="root">{children}</div>
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -34,7 +39,7 @@ export default function App() {
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   const notFound = isRouteErrorResponse(error) && error.status === 404;
   return (
-    <main>
+    <main className="error-page">
       <p className="eyebrow">Vault</p>
       <h1>{notFound ? "Page not found" : "Something went wrong"}</h1>
       <p>{notFound ? "This page does not exist." : "Please try again."}</p>
