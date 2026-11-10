@@ -6,7 +6,7 @@ import {
   ArrowUpRight,
   Check,
   ChevronRight,
-  File,
+  File as FileIcon,
   Folder,
   FolderPlus,
   Grid2X2,
@@ -103,7 +103,7 @@ function iconFor(kind: string, size = 20) {
   ) : kind === "image" ? (
     <ImageIcon size={size} />
   ) : (
-    <File size={size} />
+    <FileIcon size={size} />
   );
 }
 
