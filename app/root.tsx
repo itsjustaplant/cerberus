@@ -9,6 +9,7 @@ import {
 } from "react-router";
 import type { Route } from "./+types/root";
 import "./app.css";
+import "./agents-theme.css";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -19,7 +20,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
         />
-        <meta name="theme-color" content="#080808" />
+        <meta name="theme-color" content="#1a1a1a" />
         <meta name="color-scheme" content="dark" />
         <Meta />
         <Links />

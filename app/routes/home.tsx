@@ -188,6 +188,51 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
   }
   return (
     <div className="app-shell">
+      <nav className="workspace-rail" aria-label="Workspace">
+        <Link
+          to="/"
+          className="rail-home"
+          aria-label="Vault home"
+          title="Vault home"
+        >
+          <Mark />
+        </Link>
+        <span className="rail-divider" />
+        <Link
+          to="/"
+          className={`rail-button ${!collectionsView ? "active" : ""}`}
+          aria-label="Library"
+          title="Library"
+          aria-current={!collectionsView ? "page" : undefined}
+        >
+          <Grid2X2 size={20} />
+        </Link>
+        <Link
+          to="/?view=collections"
+          className={`rail-button ${collectionsView ? "active" : ""}`}
+          aria-label="Collections"
+          title="Collections"
+          aria-current={collectionsView ? "page" : undefined}
+        >
+          <Folder size={20} />
+        </Link>
+        <button
+          className="rail-button"
+          onClick={() => setModal("save")}
+          aria-label="Save item"
+          title="Save item"
+        >
+          <Plus size={20} />
+        </button>
+        <button
+          className="rail-button rail-phone"
+          onClick={() => setModal("phone")}
+          aria-label="Save from phone"
+          title="Save from phone"
+        >
+          <Smartphone size={20} />
+        </button>
+      </nav>
       <aside className="sidebar">
         <Link to="/" className="brand">
           <Mark />
@@ -195,7 +240,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             vault<span className="brand-dot">.</span>
           </span>
         </Link>
-        <div className="workspace-label">LIBRARY</div>
+        <div className="workspace-label">Library</div>
         <nav aria-label="Library">
           <Link
             className={`nav-link ${!data.collection && !collectionsView ? "selected" : ""}`}
@@ -221,7 +266,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           </Link>
         </nav>
         <div className="sidebar-section">
-          <span>YOUR COLLECTIONS</span>
+          <span>Collections</span>
           <button
             className="icon-button"
             aria-label="New collection"
@@ -391,8 +436,8 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
               <section className="items-section" aria-label="Saved items">
                 <div className="section-heading">
                   <h2>
-                    {data.collection ? "In this collection" : "Your library"}
-                    <span>NEWEST FIRST</span>
+                    {data.collection ? "In this collection" : "Saved items"}
+                    <span>Newest first</span>
                   </h2>
                 </div>
                 <div className="library-toolbar">
@@ -746,8 +791,9 @@ function CollectionCard({
       <div>
         <h3>{c.name}</h3>
         <p>
-          {plural(c.count)}
-          {c.id === "inbox" && <span className="default-label">DEFAULT</span>}
+          <span className="collection-count">{c.count}</span>
+          <span>{c.count === 1 ? "item" : "items"}</span>
+          {c.id === "inbox" && <span className="default-label">Default</span>}
         </p>
       </div>
     </Link>
