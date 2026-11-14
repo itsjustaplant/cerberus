@@ -1,7 +1,12 @@
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Dialog } from "@base-ui/react/dialog";
 import {
-  ArrowDownToLine,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+import {
+  Maximize2,
   ArrowRight,
   ArrowUpRight,
   Check,
@@ -22,6 +27,18 @@ import {
   Layers,
 } from "lucide-react";
 import { Form, Link, useNavigate, useRevalidator } from "react-router";
+import { StorageMeter } from "../components/storage-meter";
+import { getStorageUsage } from "../lib/storage.server";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "../components/ui/sheet";
+import { ItemDetail } from "../components/item-detail";
+import { ItemFooter, type ItemActions } from "../components/item-footer";
+import { TweetCard, TweetArchiveView } from "../components/tweet-archive";
 import type { Route } from "./+types/home";
 import { cloudflareContext } from "../lib/cloudflare.server";
 import {
@@ -30,6 +47,7 @@ import {
   listCollections,
   listItems,
 } from "../lib/vault.server";
+import { listTags, parseTags } from "../lib/tags.server";
 import type { Collection, Item } from "../lib/models";
 import { MAX_FILE_SIZE } from "../lib/models";
 
@@ -64,12 +82,25 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     100000,
     Math.max(1, Math.floor(Number(params.get("page")) || 1)),
   );
-  const [collections, results] = await Promise.all([
+  let selectedTags: string[];
+  try {
+    selectedTags = parseTags(params.getAll("tag"));
+  } catch (error) {
+    if (error instanceof InputError)
+      throw new Response(error.message, { status: 400 });
+    throw error;
+  }
+  const [collections, results, tags, storage] = await Promise.all([
     listCollections(env),
-    listItems(env, collection, query, kind, page),
+    listItems(env, collection, query, kind, page, selectedTags),
+    listTags(env, collection),
+    getStorageUsage(env),
   ]);
   return {
     collections,
+    storage,
+    tags,
+    selectedTags,
     items: results.slice(0, 48),
     page,
     hasMore: results.length > 48,
@@ -112,10 +143,28 @@ type Modal = "collection" | "save" | "phone" | null;
 export default function Home({ loaderData: data }: Route.ComponentProps) {
   const [modal, setModal] = useState<Modal>(null);
   const [moving, setMoving] = useState<Item | null>(null);
+  const [tagging, setTagging] = useState<Item | null>(null);
+  const [deleting, setDeleting] = useState<Item | null>(null);
   const [notice, setNotice] = useState("");
+  const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const activeItem = data.items.find((item) => item.id === activeItemId);
   const searchRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const revalidator = useRevalidator();
+  const hasPendingArchives =
+    !data.storage.ready ||
+    data.items.some(
+      (item) =>
+        item.tweet?.status === "pending" &&
+        Date.now() - Date.parse(item.tweet.attempted_at) < 120000,
+    );
+  useEffect(() => {
+    if (!hasPendingArchives) return;
+    const interval = setInterval(() => {
+      if (revalidator.state === "idle") void revalidator.revalidate();
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [hasPendingArchives, revalidator]);
   const selected = data.collections.find((c) => c.id === data.collection);
   const total = data.collections.reduce((n, c) => n + c.count, 0);
   const inbox = data.collections.find((c) => c.id === "inbox");
@@ -129,11 +178,12 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
     setMoving(null);
     void revalidator.revalidate();
   }
-  function filterUrl(kind: string) {
+  function filterUrl(kind: string, tags = data.selectedTags) {
     const params = new URLSearchParams();
     if (data.collection) params.set("collection", data.collection);
     if (data.query) params.set("q", data.query);
     if (kind) params.set("kind", kind);
+    for (const tag of tags) params.append("tag", tag);
     return `/?${params}`;
   }
   return (
@@ -227,8 +277,9 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             <span>{title}</span>
           </div>
           <div className="topbar-actions">
+            <StorageMeter usage={data.storage} />
             <button
-              className="icon-button"
+              className="icon-button topbar-search"
               aria-label="Search items"
               onClick={async () => {
                 if (collectionsView) await navigate("/");
@@ -238,10 +289,13 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
               <Search size={18} />
             </button>
             <span className="top-divider" />
-            <button className="button primary" onClick={() => setModal("save")}>
+            <button
+              className="button primary topbar-save"
+              aria-label="Save item"
+              onClick={() => setModal("save")}
+            >
               <Plus size={16} />
               <span>Save item</span>
-              <span className="mobile-save-label">Save</span>
             </button>
           </div>
         </header>
@@ -296,37 +350,44 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             </div>
           ) : (
             <>
-              {!data.collection && !data.query && !data.kind && (
-                <section
-                  className="collections-section"
-                  aria-label="Collections"
-                >
-                  <div className="section-heading">
-                    <h2>
-                      Collections{" "}
-                      <span>
-                        {data.collections.length.toString().padStart(2, "0")}
-                      </span>
-                    </h2>
-                    <Link to="/?view=collections" className="text-link">
-                      View all
-                      <ArrowRight size={14} />
-                    </Link>
-                  </div>
-                  <div className="collection-strip">
-                    {data.collections.slice(0, 3).map((c, i) => (
-                      <CollectionCard key={c.id} collection={c} tone={i % 4} />
-                    ))}
-                    <button
-                      className="collection-card create-card"
-                      onClick={() => setModal("collection")}
-                    >
-                      <Plus size={22} />
-                      <span>New collection</span>
-                    </button>
-                  </div>
-                </section>
-              )}
+              {!data.collection &&
+                !data.query &&
+                !data.kind &&
+                !data.selectedTags.length && (
+                  <section
+                    className="collections-section"
+                    aria-label="Collections"
+                  >
+                    <div className="section-heading">
+                      <h2>
+                        Collections{" "}
+                        <span>
+                          {data.collections.length.toString().padStart(2, "0")}
+                        </span>
+                      </h2>
+                      <Link to="/?view=collections" className="text-link">
+                        View all
+                        <ArrowRight size={14} />
+                      </Link>
+                    </div>
+                    <div className="collection-strip">
+                      {data.collections.slice(0, 3).map((c, i) => (
+                        <CollectionCard
+                          key={c.id}
+                          collection={c}
+                          tone={i % 4}
+                        />
+                      ))}
+                      <button
+                        className="collection-card create-card"
+                        onClick={() => setModal("collection")}
+                      >
+                        <Plus size={22} />
+                        <span>New collection</span>
+                      </button>
+                    </div>
+                  </section>
+                )}
               <section className="items-section" aria-label="Saved items">
                 <div className="section-heading">
                   <h2>
@@ -368,6 +429,9 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                     {data.kind && (
                       <input type="hidden" name="kind" value={data.kind} />
                     )}
+                    {data.selectedTags.map((tag) => (
+                      <input key={tag} type="hidden" name="tag" value={tag} />
+                    ))}
                     <Search size={16} />
                     <input
                       ref={searchRef}
@@ -394,6 +458,42 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                     )}
                   </Form>
                 </div>
+                {(data.tags.length > 0 || data.selectedTags.length > 0) && (
+                  <nav className="tag-filters" aria-label="Filter by tags">
+                    <Link
+                      className={`tag-filter ${data.selectedTags.length ? "" : "active"}`}
+                      to={filterUrl(data.kind, [])}
+                    >
+                      All tags
+                    </Link>
+                    {[
+                      ...new Set([
+                        ...data.tags.map((tag) => tag.name),
+                        ...data.selectedTags,
+                      ]),
+                    ]
+                      .sort()
+                      .map((tag) => (
+                        <Link
+                          key={tag}
+                          className={`tag-filter ${data.selectedTags.includes(tag) ? "active" : ""}`}
+                          aria-current={
+                            data.selectedTags.includes(tag) ? "page" : undefined
+                          }
+                          to={filterUrl(
+                            data.kind,
+                            data.selectedTags.includes(tag)
+                              ? data.selectedTags.filter(
+                                  (value) => value !== tag,
+                                )
+                              : [...data.selectedTags, tag],
+                          )}
+                        >
+                          #{tag}
+                        </Link>
+                      ))}
+                  </nav>
+                )}
                 {data.items.length ? (
                   <div className="items-grid">
                     {data.items.map((item) => (
@@ -404,6 +504,9 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                           (c) => c.id === item.collection_id,
                         )}
                         move={() => setMoving(item)}
+                        editTags={() => setTagging(item)}
+                        remove={() => setDeleting(item)}
+                        openItem={() => setActiveItemId(item.id)}
                       />
                     ))}
                   </div>
@@ -421,14 +524,16 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                       </span>
                     </div>
                     <h3>
-                      {data.query || data.kind
+                      {data.query || data.kind || data.selectedTags.length
                         ? "No matching items"
                         : "No items yet"}
                     </h3>
-                    {(data.query || data.kind) && (
+                    {(data.query ||
+                      data.kind ||
+                      data.selectedTags.length > 0) && (
                       <p>Try another search or clear the filters.</p>
                     )}
-                    {data.query || data.kind ? (
+                    {data.query || data.kind || data.selectedTags.length ? (
                       <Link
                         className="button secondary"
                         to={
@@ -511,7 +616,62 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           <span>Save</span>
         </button>
       </nav>
-      <ModalShell
+      <SheetShell
+        open={!!tagging}
+        onClose={() => setTagging(null)}
+        title="Edit tags"
+        description={tagging?.title}
+      >
+        {tagging && (
+          <EditTags
+            item={tagging}
+            onSave={() => {
+              setTagging(null);
+              saved("Tags updated.");
+            }}
+          />
+        )}
+      </SheetShell>
+      <SheetShell
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        title="Delete item?"
+        description="This permanently removes the item, its uploaded file, and any saved post archive."
+      >
+        {deleting && (
+          <DeleteItem
+            item={deleting}
+            cancel={() => setDeleting(null)}
+            onDelete={(pending) => {
+              setDeleting(null);
+              setActiveItemId(null);
+              saved(
+                pending
+                  ? "Item deleted. Storage cleanup will retry automatically."
+                  : "Item deleted.",
+              );
+            }}
+          />
+        )}
+      </SheetShell>
+      <SheetShell
+        open={!!activeItem}
+        onClose={() => setActiveItemId(null)}
+        title={activeItem?.tweet ? "Saved post" : activeItem?.title || "Item"}
+      >
+        {activeItem?.tweet ? (
+          <TweetArchiveView
+            key={activeItem.id}
+            item={activeItem}
+            refresh={() => {
+              void revalidator.revalidate();
+            }}
+          />
+        ) : activeItem ? (
+          <ItemDetail key={activeItem.id} item={activeItem} />
+        ) : null}
+      </SheetShell>
+      <SheetShell
         open={modal === "collection"}
         onClose={() => setModal(null)}
         title="New collection"
@@ -522,8 +682,8 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             void navigate(`/?collection=${id}`);
           }}
         />
-      </ModalShell>
-      <ModalShell
+      </SheetShell>
+      <SheetShell
         open={modal === "save"}
         onClose={() => setModal(null)}
         title="Save item"
@@ -534,8 +694,8 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           selected={data.collection || "inbox"}
           onSave={() => saved("Item saved.")}
         />
-      </ModalShell>
-      <ModalShell
+      </SheetShell>
+      <SheetShell
         open={!!moving}
         onClose={() => setMoving(null)}
         title="Move to a collection"
@@ -548,15 +708,15 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             onSave={() => saved("Item moved.")}
           />
         )}
-      </ModalShell>
-      <ModalShell
+      </SheetShell>
+      <SheetShell
         open={modal === "phone"}
         onClose={() => setModal(null)}
         title="Save from phone"
         description="Send a link from an iOS Shortcut, Android automation, or any HTTP client."
       >
         <PhoneHelp />
-      </ModalShell>
+      </SheetShell>
     </div>
   );
 }
@@ -598,17 +758,37 @@ function ItemCard({
   item,
   collection,
   move,
+  openItem,
+  editTags,
+  remove,
 }: {
   item: Item;
   collection?: Collection;
-  move: () => void;
-}) {
-  const href =
-    item.url ||
-    `/api/files/${item.id}${item.kind === "image" ? "" : "?download"}`;
+  openItem: () => void;
+} & ItemActions) {
+  if (item.tweet)
+    return (
+      <TweetCard
+        item={item}
+        collection={collection}
+        open={openItem}
+        move={move}
+        editTags={editTags}
+        remove={remove}
+      />
+    );
   return (
-    <article className={`item-card kind-${item.kind}`}>
-      <a className="item-preview" href={href} target="_blank" rel="noreferrer">
+    <article
+      className={`item-card kind-${item.kind}`}
+      onClick={(event) => {
+        if (!(event.target as HTMLElement).closest("a, button")) openItem();
+      }}
+    >
+      <button
+        className="item-preview"
+        onClick={openItem}
+        aria-label={`Open ${item.title}`}
+      >
         {item.kind === "image" ? (
           <img src={`/api/files/${item.id}`} alt={item.title} loading="lazy" />
         ) : (
@@ -630,45 +810,29 @@ function ItemCard({
           </div>
         )}
         <span className="preview-open">
-          {item.kind === "link" ? (
-            <ArrowUpRight size={17} />
-          ) : (
-            <ArrowDownToLine size={17} />
-          )}
+          <Maximize2 size={17} />
         </span>
-      </a>
+      </button>
       <div className="item-info">
         <div className="item-title-row">
           {iconFor(item.kind, 14)}
-          <a
-            href={href}
-            target="_blank"
-            rel="noreferrer"
-            className="item-title"
-          >
+          <button className="item-title" onClick={openItem}>
             {item.title}
-          </a>
-        </div>
-        <div className="item-meta">
-          <span>
-            <span className="small-dot" />
-            {collection?.name || "Inbox"}
-          </span>
-          <button
-            className="icon-button"
-            onClick={move}
-            aria-label={`Move ${item.title}`}
-            title="Move to collection"
-          >
-            <MoveRight size={16} />
           </button>
         </div>
+        <ItemFooter
+          item={item}
+          collection={collection}
+          move={move}
+          editTags={editTags}
+          remove={remove}
+        />
       </div>
     </article>
   );
 }
 
-function ModalShell({
+function SheetShell({
   open,
   onClose,
   title,
@@ -681,35 +845,29 @@ function ModalShell({
   description?: string;
   children: ReactNode;
 }) {
+  // Parent selection state clears on close; retain the last view through Base UI's exit.
+  const [retained, setRetained] = useState({ title, description, children });
+  useEffect(() => {
+    if (open) setRetained({ title, description, children });
+  }, [open, title, description, children]);
+  const content = open ? { title, description, children } : retained;
   return (
-    <Dialog.Root
+    <Sheet
       open={open}
       onOpenChange={(value) => {
         if (!value) onClose();
       }}
     >
-      <Dialog.Portal>
-        <Dialog.Backdrop className="dialog-backdrop" />
-        <Dialog.Viewport className="dialog-viewport">
-          <Dialog.Popup className="dialog-popup">
-            <Dialog.Close
-              className="icon-button dialog-close"
-              aria-label="Close dialog"
-            >
-              <X size={19} />
-            </Dialog.Close>
-            <span className="dialog-symbol">
-              <Layers size={24} strokeWidth={1.4} />
-            </span>
-            <Dialog.Title>{title}</Dialog.Title>
-            {description && (
-              <Dialog.Description>{description}</Dialog.Description>
-            )}
-            {children}
-          </Dialog.Popup>
-        </Dialog.Viewport>
-      </Dialog.Portal>
-    </Dialog.Root>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>{content.title}</SheetTitle>
+          {content.description && (
+            <SheetDescription>{content.description}</SheetDescription>
+          )}
+        </SheetHeader>
+        <div className="sheet-body">{content.children}</div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -729,6 +887,7 @@ async function send(
   const result = (await response.json()) as {
     error?: string;
     collection?: { id: string };
+    cleanup_pending?: boolean;
   };
   if (!response.ok)
     throw new Error(result.error || "Something went wrong. Try again.");
@@ -903,6 +1062,13 @@ function SaveItem({
           Title <span className="optional">optional</span>
           <input name="title" maxLength={200} placeholder="Title" />
         </label>
+        <label>
+          Tags <span className="optional">optional</span>
+          <input name="tags" maxLength={1024} placeholder="design, reading" />
+          <span className="field-hint">
+            Separate tags with commas. Up to 10 tags.
+          </span>
+        </label>
         <CollectionSelect collections={collections} selected={selected} />
         {error && (
           <p className="form-error" role="alert">
@@ -985,6 +1151,92 @@ function PhoneHelp() {
           This endpoint is open without a token. It accepts links only, limited
           to 30 requests per minute per IP at each Cloudflare location.
         </span>
+      </div>
+    </div>
+  );
+}
+
+function EditTags({ item, onSave }: { item: Item; onSave: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy(true);
+    setError("");
+    try {
+      await send(`/api/items/${item.id}`, { tags: form.get("tags") }, "PATCH");
+      onSave();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="dialog-form" onSubmit={submit}>
+      <label>
+        Tags
+        <input
+          name="tags"
+          maxLength={1024}
+          defaultValue={(item.tags || []).join(", ")}
+          placeholder="design, reading"
+        />
+        <span className="field-hint">
+          Separate tags with commas. Leave empty to remove all tags.
+        </span>
+      </label>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="button primary form-submit" disabled={busy}>
+        {busy ? "Saving…" : "Save tags"}
+      </button>
+    </form>
+  );
+}
+
+function DeleteItem({
+  item,
+  cancel,
+  onDelete,
+}: {
+  item: Item;
+  cancel: () => void;
+  onDelete: (pending: boolean) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function remove() {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await send(`/api/items/${item.id}`, {}, "DELETE");
+      onDelete(!!result.cleanup_pending);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="delete-confirm">
+      <p className="delete-item-title">{item.title}</p>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="delete-actions">
+        <button className="button secondary" disabled={busy} onClick={cancel}>
+          Cancel
+        </button>
+        <button className="button primary" disabled={busy} onClick={remove}>
+          {busy ? "Deleting…" : "Delete item"}
+        </button>
       </div>
     </div>
   );

@@ -233,6 +233,110 @@ try {
   assert.doesNotMatch(pageOne, /Pagination fixture 0</);
   assert.match(pageTwo, /Pagination fixture 0</);
   assert.match(pageTwo, /Previous/);
+  const { item: tagged } = await api("/api/items", {
+    url: "https://example.com/tagged",
+    title: "Tagged item fixture",
+    tags: "Design, #Reading, design",
+  });
+  const { item: untagged } = await api("/api/items", {
+    url: "https://example.com/untagged",
+    title: "Untagged item fixture",
+  });
+  assert.match(await page("/?tag=design&tag=reading"), /Tagged item fixture/);
+  assert.doesNotMatch(
+    await page("/?tag=design&tag=reading"),
+    /Untagged item fixture/,
+  );
+  await api(
+    `/api/items/${tagged.id}`,
+    { tags: ["Research", "旅行"] },
+    200,
+    "PATCH",
+  );
+  assert.match(await page("/?tag=research"), /Tagged item fixture/);
+  assert.doesNotMatch(await page("/?tag=design"), /Tagged item fixture/);
+  await api(`/api/items/${tagged.id}`, { tags: [] }, 200, "PATCH");
+  assert.doesNotMatch(await page("/?tag=research"), /Tagged item fixture/);
+  await api(
+    "/api/items",
+    { url: "https://example.com", tags: ["a".repeat(33)] },
+    400,
+  );
+  await api(
+    `/api/items/${tagged.id}`,
+    { tags: Array.from({ length: 11 }, (_, n) => `tag${n}`) },
+    400,
+    "PATCH",
+  );
+  await api(`/api/items/${tagged.id}`, {}, 400, "PATCH");
+  await api(`/api/items/${tagged.id}`, {}, 403, "DELETE", {
+    Origin: "https://evil.example",
+  });
+  await api(`/api/items/${tagged.id}`, {}, 200, "DELETE");
+  await api(`/api/items/${tagged.id}`, {}, 404, "DELETE");
+  await api(`/api/items/${tagged.id}`, { tags: ["gone"] }, 404, "PATCH");
+  assert.doesNotMatch(
+    await page("/?q=Tagged+item+fixture"),
+    /class="item-title">Tagged item fixture/,
+  );
+  await api(`/api/items/${file.id}`, {}, 200, "DELETE");
+  assert.equal((await fetch(base + `/api/files/${file.id}`)).status, 404);
+  assert.match(await page("/?q=Untagged"), /Untagged item fixture/);
+  // Optional real-provider check runs only in this disposable library.
+  if (process.env.VAULT_LIVE_TWEET) {
+    const { item: tweet } = await api("/api/items", {
+      url: process.env.VAULT_LIVE_TWEET,
+    });
+    let archive;
+    for (let attempt = 0; attempt < 150; attempt++) {
+      const response = await fetch(base + `/api/items/${tweet.id}/archive`);
+      assert.equal(response.status, 200);
+      archive = (await response.json()).archive;
+      if (archive.status !== "pending") break;
+      await delay(200);
+    }
+    if (archive.status !== "complete") {
+      const diagnostics = await fetch(
+        base + "/cdn-cgi/local/explorer/api/local/observability/query",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sql: "SELECT level, message FROM logs WHERE level IN ('warn', 'error') ORDER BY ts_ms DESC LIMIT 5",
+          }),
+        },
+      );
+      console.error("Archive diagnostics:", await diagnostics.text());
+    }
+    assert.equal(archive.status, "complete", JSON.stringify(archive));
+    assert.ok(archive.username && archive.posted_at && archive.post_text);
+    assert.ok(
+      archive.photos.length > 0,
+      "Live sample should have an attached photo",
+    );
+    for (const photo of archive.photos) {
+      const response = await fetch(base + `/api/tweet-photos/${photo.id}`);
+      assert.equal(response.status, 200);
+      assert.ok(response.headers.get("Content-Type").startsWith("image/"));
+      assert.equal((await response.arrayBuffer()).byteLength, photo.size);
+      assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
+    }
+    assert.match(await page("/?tag=twitter"), /View saved post/);
+    await api(`/api/items/${tweet.id}`, { tags: [] }, 200, "PATCH");
+    assert.match(await page("/?tag=twitter"), /View saved post/);
+    console.log(
+      `PASS: live post archive — @${archive.username}, ${archive.photos.length} image(s) copied to R2 and served by Vault.`,
+    );
+    const deletedPhotoIds = archive.photos.map((photo) => photo.id);
+    await api(`/api/items/${tweet.id}`, {}, 200, "DELETE");
+    assert.equal(
+      (await fetch(base + `/api/items/${tweet.id}/archive`)).status,
+      404,
+    );
+    for (const id of deletedPhotoIds)
+      assert.equal((await fetch(base + `/api/tweet-photos/${id}`)).status, 404);
+    console.log("PASS: archived post and image deletion.");
+  }
   let limited = false;
   for (let i = 0; i < 40; i++) {
     const response = await fetch(base + "/api/capture", {
@@ -248,10 +352,59 @@ try {
     assert.equal(response.status, 201);
   }
   assert.ok(limited, "Capture rate limit should reject excess requests");
+  const quotaBefore = (await (await fetch(base + "/api/storage")).json())
+    .storage;
+  assert.equal(quotaBefore.limitBytes, 10_000_000_000);
+  assert.ok(quotaBefore.ready);
+  const seeded = await fetch(
+    base +
+      "/cdn-cgi/local/explorer/api/d1/database/00000000-0000-0000-0000-000000000000/raw",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sql: "INSERT INTO storage_objects (object_key, owner_id, size, state, created_at) SELECT 'quota-test-existing', 'quota-test', limit_bytes - charged_bytes - 16, 'stored', ? FROM storage_quota WHERE id = 1",
+        params: [new Date().toISOString()],
+      }),
+    },
+  );
+  assert.ok(seeded.ok, await seeded.text());
+  const uploads = await Promise.all(
+    Array.from({ length: 12 }, async (_, n) => {
+      const form = new FormData();
+      form.set("file", new File([new Uint8Array(4)], `quota-${n}.bin`));
+      const response = await fetch(base + "/api/items", {
+        method: "POST",
+        body: form,
+      });
+      return { status: response.status, body: await response.json() };
+    }),
+  );
+  assert.equal(uploads.filter((upload) => upload.status === 201).length, 4);
+  assert.equal(uploads.filter((upload) => upload.status === 507).length, 8);
+  const full = (await (await fetch(base + "/api/storage")).json()).storage;
+  assert.equal(full.usedBytes, 10_000_000_000);
+  const successful = uploads.find((upload) => upload.status === 201);
+  await api(`/api/items/${successful.body.item.id}`, {}, 200, "DELETE");
+  const afterDelete = (await (await fetch(base + "/api/storage")).json())
+    .storage;
+  assert.equal(afterDelete.usedBytes, 9_999_999_996);
+  const exact = new FormData();
+  exact.set("file", new File([new Uint8Array(4)], "last-four.bin"));
+  await api("/api/items", exact);
+  const extraByte = new FormData();
+  extraByte.set("file", new File([new Uint8Array(1)], "over.bin"));
+  await api("/api/items", extraByte, 507);
   console.log(
-    "PASS: collections, capture defaults, move, search, pagination, file and image persistence, download headers, validation, request limits, CSRF, rate limiting, and 404/405 handling.",
+    "PASS: strict 10 GB quota under concurrent HTTP uploads, exact boundary, and deletion recovery.",
+  );
+  console.log(
+    "PASS: tags, deletion, collections, capture defaults, move, search, pagination, file and image persistence, download headers, validation, request limits, CSRF, rate limiting, and 404/405 handling.",
   );
   console.log(`Isolated local test storage: ${storage}`);
+} catch (error) {
+  console.error(logs);
+  throw error;
 } finally {
   server.kill("SIGTERM");
   await new Promise((resolve) => {

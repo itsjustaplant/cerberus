@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   isRouteErrorResponse,
   Links,
@@ -33,6 +34,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  useEffect(() => {
+    const root = document.documentElement;
+    function setModality(value: "keyboard" | "pointer") {
+      if (root.dataset.inputModality !== value)
+        root.dataset.inputModality = value;
+    }
+    const pointer = () => setModality("pointer");
+    const keyboard = () => setModality("keyboard");
+    setModality("keyboard");
+    document.addEventListener("pointerdown", pointer, true);
+    document.addEventListener("keydown", keyboard, true);
+    return () => {
+      document.removeEventListener("pointerdown", pointer, true);
+      document.removeEventListener("keydown", keyboard, true);
+    };
+  }, []);
   return <Outlet />;
 }
 

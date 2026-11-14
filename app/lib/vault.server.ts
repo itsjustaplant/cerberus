@@ -1,30 +1,21 @@
 import type { Collection, Item } from "./models";
 import { IMAGE_TYPES, MAX_FILE_SIZE } from "./models";
 
-export class InputError extends Error {
-  constructor(
-    message: string,
-    public status = 400,
-  ) {
-    super(message);
-  }
-}
+import {
+  archiveTweet,
+  tweetIdFromUrl,
+  attachTweetArchives,
+} from "./tweets.server";
 
-export function text(
-  value: unknown,
-  name: string,
-  max: number,
-  required = false,
-) {
-  if (value == null && !required) return "";
-  if (typeof value !== "string") throw new InputError(`${name} must be text.`);
-  const result = value.trim();
-  if ((required && !result) || result.length > max)
-    throw new InputError(
-      `${name} must be ${required ? "1–" : "at most "}${max} characters.`,
-    );
-  return result;
-}
+import { InputError, text } from "./validation.server";
+import { writeStoredObject, deleteStoredObjects } from "./storage.server";
+export { InputError, text } from "./validation.server";
+import {
+  parseTags,
+  tagStatements,
+  attachTags,
+  sourceTags,
+} from "./tags.server";
 
 export function normalizeUrl(value: unknown) {
   const raw = text(value, "URL", 4096, true);
@@ -68,6 +59,7 @@ export async function listItems(
   query: string,
   kind: string,
   page = 1,
+  tags: string[] = [],
 ) {
   const clauses: string[] = [];
   const values: string[] = [];
@@ -77,27 +69,35 @@ export async function listItems(
   }
   if (query) {
     clauses.push(
-      "(instr(lower(title), lower(?)) > 0 OR instr(lower(COALESCE(url, '')), lower(?)) > 0 OR instr(lower(COALESCE(filename, '')), lower(?)) > 0)",
+      "(instr(lower(title), lower(?)) > 0 OR instr(lower(COALESCE(url, '')), lower(?)) > 0 OR instr(lower(COALESCE(filename, '')), lower(?)) > 0 OR EXISTS (SELECT 1 FROM tweet_archives a WHERE a.item_id = items.id AND (instr(lower(COALESCE(a.post_text, '')), lower(?)) > 0 OR instr(lower(COALESCE(a.username, '')), lower(?)) > 0)))",
     );
-    values.push(query, query, query);
+    values.push(query, query, query, query, query);
   }
   if (["link", "image", "file"].includes(kind)) {
     clauses.push("kind = ?");
     values.push(kind);
   }
-  return (
+  for (const tag of tags) {
+    clauses.push(
+      "EXISTS (SELECT 1 FROM item_tags WHERE item_id = items.id AND tag = ?)",
+    );
+    values.push(tag);
+  }
+  const items = (
     await env.DB.prepare(
       `SELECT id, collection_id, kind, title, url, filename, content_type, size, created_at FROM items ${clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""} ORDER BY created_at DESC, id DESC LIMIT 49 OFFSET ?`,
     )
       .bind(...values, (page - 1) * 48)
       .all<Item>()
   ).results;
+  return attachTweetArchives(env, await attachTags(env, items));
 }
 
 export async function createLink(
   env: Env,
   fields: Record<string, unknown>,
   inboxOnly = false,
+  ctx?: ExecutionContext,
 ) {
   const url = normalizeUrl(fields.url);
   const title =
@@ -107,11 +107,24 @@ export async function createLink(
     : text(fields.collection_id, "Collection", 80) || "inbox";
   await collectionExists(env, collection);
   const id = crypto.randomUUID();
-  await env.DB.prepare(
+  const tags = sourceTags(url, parseTags(fields.tags));
+  const tweetId = tweetIdFromUrl(url);
+  const insert = env.DB.prepare(
     "INSERT INTO items (id, collection_id, kind, title, url) VALUES (?, ?, ?, ?, ?)",
-  )
-    .bind(id, collection, "link", title, url)
-    .run();
+  ).bind(id, collection, "link", title, url);
+  const statements = [insert, ...tagStatements(env, id, tags)];
+  if (tweetId) {
+    statements.push(
+      env.DB.prepare(
+        "INSERT INTO tweet_archives (item_id, tweet_id, attempted_at) VALUES (?, ?, ?)",
+      ).bind(id, tweetId, new Date().toISOString()),
+    );
+  }
+  await env.DB.batch(statements);
+  if (tweetId) {
+    if (ctx) ctx.waitUntil(archiveTweet(env, id));
+    else await archiveTweet(env, id);
+  }
   return { id, collection_id: collection, kind: "link", title, url };
 }
 
@@ -130,20 +143,26 @@ export async function createFile(env: Env, form: FormData) {
     text(form.get("collection_id"), "Collection", 80) || "inbox";
   await collectionExists(env, collection);
   const id = crypto.randomUUID();
+  const tags = parseTags(form.get("tags"));
   const key = `items/${id}`;
   const kind = IMAGE_TYPES.includes(file.type) ? "image" : "file";
   const type = kind === "image" ? file.type : "application/octet-stream";
-  await env.FILES.put(key, file.stream(), {
-    httpMetadata: { contentType: type },
-  });
+  await writeStoredObject(
+    env,
+    id,
+    key,
+    new Uint8Array(await file.arrayBuffer()),
+    type,
+  );
   try {
-    await env.DB.prepare(
-      "INSERT INTO items (id, collection_id, kind, title, object_key, filename, content_type, size) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    )
-      .bind(id, collection, kind, title, key, filename, type, file.size)
-      .run();
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO items (id, collection_id, kind, title, object_key, filename, content_type, size) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      ).bind(id, collection, kind, title, key, filename, type, file.size),
+      ...tagStatements(env, id, tags),
+    ]);
   } catch (error) {
-    await env.FILES.delete(key);
+    await deleteStoredObjects(env, [key]);
     throw error;
   }
   return { id, collection_id: collection, kind, title };

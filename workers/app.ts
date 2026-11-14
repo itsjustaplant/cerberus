@@ -11,7 +11,7 @@ const requestHandler = createRequestHandler(
 export default {
   fetch(request, env, ctx) {
     if (new URL(request.url).pathname.startsWith("/api/"))
-      return api(request, env);
+      return api(request, env, ctx);
     const context = new RouterContextProvider();
     context.set(cloudflareContext, { env, ctx });
     return requestHandler(request, context);

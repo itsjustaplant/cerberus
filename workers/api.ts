@@ -9,14 +9,26 @@ import {
 } from "../app/lib/vault.server";
 import { MAX_FILE_SIZE } from "../app/lib/models";
 
+import { getTweetArchive, retryTweetArchive } from "../app/lib/tweets.server";
+
+import { parseTags, tagStatements, sourceTags } from "../app/lib/tags.server";
+import { cleanupDeletedObjects, deleteItem } from "../app/lib/deletion.server";
+
+import { getStorageUsage } from "../app/lib/storage.server";
+
 const json = (body: unknown, status = 200, headers?: HeadersInit) =>
   Response.json(body, {
     status,
     headers: { "Cache-Control": "no-store", ...headers },
   });
 
-export async function api(request: Request, env: Env): Promise<Response> {
+export async function api(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
   const path = new URL(request.url).pathname;
+  ctx.waitUntil(cleanupDeletedObjects(env));
   try {
     const capture = path === "/api/capture";
     // UI mutations are same-origin. The capture route deliberately accepts phone shortcuts.
@@ -28,6 +40,11 @@ export async function api(request: Request, env: Env): Promise<Response> {
         request.headers.get("Sec-Fetch-Site") === "cross-site")
     )
       return json({ error: "Cross-origin requests are not allowed." }, 403);
+    if (path === "/api/storage") {
+      if (request.method !== "GET")
+        return json({ error: "Method not allowed." }, 405, { Allow: "GET" });
+      return json({ storage: await getStorageUsage(env) });
+    }
     if (capture) {
       if (request.method !== "POST")
         return json({ error: "Use POST with a URL." }, 405, { Allow: "POST" });
@@ -40,7 +57,7 @@ export async function api(request: Request, env: Env): Promise<Response> {
         });
       const body = await boundedRequest(request, 8192);
       return json(
-        { item: await createLink(env, await readFields(body), true) },
+        { item: await createLink(env, await readFields(body), true, ctx) },
         201,
       );
     }
@@ -70,22 +87,96 @@ export async function api(request: Request, env: Env): Promise<Response> {
       );
       const item = multipart
         ? await createFile(env, await body.formData())
-        : await createLink(env, await readFields(body));
+        : await createLink(env, await readFields(body), false, ctx);
       return json({ item }, 201);
+    }
+    const archiveMatch = path.match(/^\/api\/items\/([a-zA-Z0-9-]+)\/archive$/);
+    if (archiveMatch) {
+      const archive = await getTweetArchive(env, archiveMatch[1]);
+      if (!archive) throw new InputError("Post archive not found.", 404);
+      if (request.method === "GET") return json({ archive });
+      if (request.method === "POST") {
+        if (archive.status === "complete") return json({ archive });
+        const started = await retryTweetArchive(env, archiveMatch[1], ctx);
+        return json(
+          started
+            ? { ok: true }
+            : { error: "Archiving is already in progress. Try again shortly." },
+          started ? 202 : 409,
+        );
+      }
+      return json({ error: "Method not allowed." }, 405, {
+        Allow: "GET, POST",
+      });
+    }
+    const photoMatch = path.match(/^\/api\/tweet-photos\/([a-zA-Z0-9-]+)$/);
+    if (photoMatch) {
+      if (!["GET", "HEAD"].includes(request.method))
+        return json({ error: "Method not allowed." }, 405, {
+          Allow: "GET, HEAD",
+        });
+      const photo = await env.DB.prepare(
+        "SELECT object_key, content_type, position FROM tweet_photos WHERE id = ?",
+      )
+        .bind(photoMatch[1])
+        .first<{
+          object_key: string;
+          content_type: string;
+          position: number;
+        }>();
+      if (!photo) throw new InputError("Image not found.", 404);
+      const object = await env.FILES.get(photo.object_key);
+      if (!object) throw new InputError("Image not found.", 404);
+      return new Response(request.method === "HEAD" ? null : object.body, {
+        headers: {
+          "Content-Type": photo.content_type,
+          "Content-Length": String(object.size),
+          "Content-Disposition": `inline; filename="post-image-${photo.position + 1}"`,
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "private, no-store",
+          "Content-Security-Policy": "default-src 'none'; sandbox",
+        },
+      });
     }
     const itemMatch = path.match(/^\/api\/items\/([a-zA-Z0-9-]+)$/);
     if (itemMatch) {
+      const id = itemMatch[1];
+      if (request.method === "DELETE")
+        return json({ ok: true, ...(await deleteItem(env, id)) });
       if (request.method !== "PATCH")
-        return json({ error: "Method not allowed." }, 405, { Allow: "PATCH" });
+        return json({ error: "Method not allowed." }, 405, {
+          Allow: "PATCH, DELETE",
+        });
       const fields = await readFields(await boundedRequest(request, 8192));
-      const collection = text(fields.collection_id, "Collection", 80, true);
-      await collectionExists(env, collection);
-      const result = await env.DB.prepare(
-        "UPDATE items SET collection_id = ? WHERE id = ?",
+      const item = await env.DB.prepare(
+        "SELECT id, url FROM items WHERE id = ?",
       )
-        .bind(collection, itemMatch[1])
-        .run();
-      if (!result.meta.changes) throw new InputError("Item not found.", 404);
+        .bind(id)
+        .first<{ id: string; url: string | null }>();
+      if (!item) throw new InputError("Item not found.", 404);
+      const statements: D1PreparedStatement[] = [];
+      if ("collection_id" in fields) {
+        const collection = text(fields.collection_id, "Collection", 80, true);
+        await collectionExists(env, collection);
+        statements.push(
+          env.DB.prepare(
+            "UPDATE items SET collection_id = ? WHERE id = ?",
+          ).bind(collection, id),
+        );
+      }
+      if ("tags" in fields) {
+        const tags = sourceTags(item.url, parseTags(fields.tags));
+        statements.push(
+          env.DB.prepare("DELETE FROM item_tags WHERE item_id = ?").bind(id),
+          ...tagStatements(env, id, tags),
+          env.DB.prepare(
+            "DELETE FROM tags WHERE NOT EXISTS (SELECT 1 FROM item_tags WHERE tag = tags.name)",
+          ),
+        );
+      }
+      if (!statements.length)
+        throw new InputError("Provide a collection or tags to update.");
+      await env.DB.batch(statements);
       return json({ ok: true });
     }
     const fileMatch = path.match(/^\/api\/files\/([a-zA-Z0-9-]+)$/);
