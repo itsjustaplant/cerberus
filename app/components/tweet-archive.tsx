@@ -1,7 +1,7 @@
 import { ImageGallery } from "./image-gallery";
 import { useState } from "react";
 import { ArrowUpRight, Link2, RefreshCw } from "lucide-react";
-import { ItemFooter, type ItemActions } from "./item-footer";
+import { ItemFooter } from "./item-footer";
 import type { Collection, Item, TweetArchive } from "../lib/models";
 
 export function archiveLabel(archive: TweetArchive) {
@@ -26,14 +26,11 @@ export function TweetCard({
   item,
   collection,
   open,
-  move,
-  editTags,
-  remove,
 }: {
   item: Item;
   collection?: Collection;
   open: () => void;
-} & ItemActions) {
+}) {
   const archive = item.tweet!;
   const body = (
     archive.post_text ??
@@ -90,13 +87,7 @@ export function TweetCard({
             View saved post
           </button>
         </div>
-        <ItemFooter
-          item={item}
-          collection={collection}
-          move={move}
-          editTags={editTags}
-          remove={remove}
-        />
+        <ItemFooter item={item} collection={collection} />
       </div>
     </article>
   );
@@ -110,6 +101,10 @@ export function TweetArchiveView({
   refresh: () => void;
 }) {
   const archive = item.tweet!;
+  const text = archive.post_text || "";
+  const preview = text.slice(0, 500).split("\n").slice(0, 8).join("\n");
+  const canExpand = preview.length < text.length;
+  const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function retry() {
@@ -142,7 +137,20 @@ export function TweetArchiveView({
         {archiveLabel(archive)}
       </span>
       {archive.post_text != null && (
-        <p className="tweet-full-text">{archive.post_text}</p>
+        <div className="tweet-text-container">
+          <p className={`tweet-full-text ${expanded ? "" : "is-collapsed"}`}>
+            {expanded || !canExpand ? text : preview + "…"}
+          </p>
+          {canExpand && (
+            <button
+              className="text-link see-more"
+              aria-expanded={expanded}
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? "See less" : "See more"}
+            </button>
+          )}
+        </div>
       )}
       {archive.error && <p className="archive-warning">{archive.error}</p>}
       <ImageGallery

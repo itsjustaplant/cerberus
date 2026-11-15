@@ -1,6 +1,6 @@
 import {
   useEffect,
-  useRef,
+  useId,
   useState,
   type FormEvent,
   type ReactNode,
@@ -22,6 +22,8 @@ import {
   X,
   Image as ImageIcon,
   MoveRight,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import {
   Form,
@@ -31,6 +33,7 @@ import {
   useRevalidator,
   type LoaderFunctionArgs,
 } from "react-router";
+import { Select } from "@base-ui/react/select";
 import { toast } from "sonner";
 import { collectionPath, itemPath } from "../lib/library-url";
 import { StorageMeter } from "../components/storage-meter";
@@ -43,7 +46,7 @@ import {
   SheetTitle,
 } from "../components/ui/sheet";
 import { ItemDetail } from "../components/item-detail";
-import { ItemFooter, type ItemActions } from "../components/item-footer";
+import { ItemFooter, ItemHeaderActions } from "../components/item-footer";
 import { TweetCard, TweetArchiveView } from "../components/tweet-archive";
 import type { Route } from "./+types/home";
 import { cloudflareContext } from "../lib/cloudflare.server";
@@ -178,7 +181,6 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const activeItem =
     data.focusedItem || data.items.find((item) => item.id === activeItemId);
-  const searchRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const hasPendingArchives =
@@ -218,7 +220,18 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
     );
     setModal(null);
     setMoving(null);
-    void revalidator.revalidate();
+    if (
+      data.focusedItem &&
+      (!item || item.collection_id !== data.focusedItem.collection_id)
+    ) {
+      setActiveItemId(null);
+      void navigate(
+        collectionPath(item?.collection_id || data.focusedItem.collection_id),
+        { replace: true },
+      );
+    } else {
+      void revalidator.revalidate();
+    }
   }
   const libraryPath = data.collection ? collectionPath(data.collection) : "/";
   function filterUrl(
@@ -357,16 +370,6 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           </div>
           <div className="topbar-actions">
             <StorageMeter usage={data.storage} />
-            <button
-              className="icon-button topbar-search"
-              aria-label="Search items"
-              onClick={async () => {
-                if (collectionsView) await navigate("/");
-                searchRef.current?.focus();
-              }}
-            >
-              <Search size={18} />
-            </button>
           </div>
         </header>
         <main className="main-content" data-page-content>
@@ -485,7 +488,6 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                     ))}
                     <Search size={16} />
                     <input
-                      ref={searchRef}
                       aria-label="Search your library"
                       name="q"
                       defaultValue={data.query}
@@ -551,9 +553,6 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                         collection={data.collections.find(
                           (c) => c.id === item.collection_id,
                         )}
-                        move={() => setMoving(item)}
-                        editTags={() => setTagging(item)}
-                        remove={() => setDeleting(item)}
                         openItem={() => setActiveItemId(item.id)}
                       />
                     ))}
@@ -707,6 +706,16 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             });
         }}
         title={activeItem?.tweet ? "Saved post" : activeItem?.title || "Item"}
+        actions={
+          activeItem && (
+            <ItemHeaderActions
+              item={activeItem}
+              editTags={() => setTagging(activeItem)}
+              move={() => setMoving(activeItem)}
+              remove={() => setDeleting(activeItem)}
+            />
+          )
+        }
       >
         {activeItem?.tweet ? (
           <TweetArchiveView
@@ -796,26 +805,14 @@ function CollectionCard({
 function ItemCard({
   item,
   collection,
-  move,
   openItem,
-  editTags,
-  remove,
 }: {
   item: Item;
   collection?: Collection;
   openItem: () => void;
-} & ItemActions) {
+}) {
   if (item.tweet)
-    return (
-      <TweetCard
-        item={item}
-        collection={collection}
-        open={openItem}
-        move={move}
-        editTags={editTags}
-        remove={remove}
-      />
-    );
+    return <TweetCard item={item} collection={collection} open={openItem} />;
   return (
     <article
       className={`item-card kind-${item.kind}`}
@@ -859,13 +856,7 @@ function ItemCard({
             {item.title}
           </button>
         </div>
-        <ItemFooter
-          item={item}
-          collection={collection}
-          move={move}
-          editTags={editTags}
-          remove={remove}
-        />
+        <ItemFooter item={item} collection={collection} />
       </div>
     </article>
   );
@@ -877,19 +868,26 @@ function SheetShell({
   title,
   description,
   children,
+  actions,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   description?: string;
   children: ReactNode;
+  actions?: ReactNode;
 }) {
   // Parent selection state clears on close; retain the last view through Base UI's exit.
-  const [retained, setRetained] = useState({ title, description, children });
+  const [retained, setRetained] = useState({
+    title,
+    description,
+    children,
+    actions,
+  });
   useEffect(() => {
-    if (open) setRetained({ title, description, children });
-  }, [open, title, description, children]);
-  const content = open ? { title, description, children } : retained;
+    if (open) setRetained({ title, description, children, actions });
+  }, [open, title, description, children, actions]);
+  const content = open ? { title, description, children, actions } : retained;
   return (
     <Sheet
       open={open}
@@ -900,6 +898,7 @@ function SheetShell({
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{content.title}</SheetTitle>
+          {content.actions}
           {content.description && (
             <SheetDescription>{content.description}</SheetDescription>
           )}
@@ -992,18 +991,47 @@ function CollectionSelect({
   collections: Collection[];
   selected: string;
 }) {
+  const id = useId();
+  const options = collections.map((c) => ({
+    value: c.id,
+    label: c.name + (c.id === "inbox" ? " (default)" : ""),
+  }));
   return (
-    <label>
-      Save to
-      <select name="collection_id" defaultValue={selected}>
-        {collections.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-            {c.id === "inbox" ? " (default)" : ""}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="collection-select-field">
+      <label id={id}>Save to</label>
+      <Select.Root name="collection_id" defaultValue={selected} items={options}>
+        <Select.Trigger className="select-trigger" aria-labelledby={id}>
+          <Select.Value />
+          <Select.Icon>
+            <ChevronDown size={16} />
+          </Select.Icon>
+        </Select.Trigger>
+        <Select.Portal>
+          <Select.Positioner
+            className="select-positioner"
+            sideOffset={6}
+            alignItemWithTrigger={false}
+          >
+            <Select.Popup className="select-popup">
+              <Select.List>
+                {options.map((option) => (
+                  <Select.Item
+                    key={option.value}
+                    value={option.value}
+                    className="select-item"
+                  >
+                    <Select.ItemText>{option.label}</Select.ItemText>
+                    <Select.ItemIndicator>
+                      <Check size={15} />
+                    </Select.ItemIndicator>
+                  </Select.Item>
+                ))}
+              </Select.List>
+            </Select.Popup>
+          </Select.Positioner>
+        </Select.Portal>
+      </Select.Root>
+    </div>
   );
 }
 

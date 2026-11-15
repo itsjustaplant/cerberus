@@ -9,10 +9,10 @@ export interface ItemActions {
 export function ItemFooter({
   item,
   collection,
-  move,
-  editTags,
-  remove,
-}: { item: Item; collection?: Collection } & ItemActions) {
+}: {
+  item: Item;
+  collection?: Collection;
+}) {
   const tags = item.tags || [];
   return (
     <>
@@ -32,32 +32,42 @@ export function ItemFooter({
         <span className="small-dot" />
         <span>{collection?.name || "Inbox"}</span>
       </div>
-      <div className="item-actions">
-        <button
-          className="icon-button"
-          onClick={editTags}
-          aria-label={`Edit tags for ${item.title}`}
-          title="Edit tags"
-        >
-          <Tag size={16} />
-        </button>
-        <button
-          className="icon-button"
-          onClick={move}
-          aria-label={`Move ${item.title}`}
-          title="Move to collection"
-        >
-          <MoveRight size={16} />
-        </button>
-        <button
-          className="icon-button delete-button"
-          onClick={remove}
-          aria-label={`Delete ${item.title}`}
-          title="Delete item"
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
     </>
+  );
+}
+
+export function ItemHeaderActions({
+  item,
+  move,
+  editTags,
+  remove,
+}: { item: Item } & ItemActions) {
+  return (
+    <div className="item-actions">
+      <button
+        className="icon-button"
+        onClick={editTags}
+        aria-label={`Edit tags for ${item.title}`}
+        title="Edit tags"
+      >
+        <Tag size={16} />
+      </button>
+      <button
+        className="icon-button"
+        onClick={move}
+        aria-label={`Move ${item.title}`}
+        title="Move to collection"
+      >
+        <MoveRight size={16} />
+      </button>
+      <button
+        className="icon-button delete-button"
+        onClick={remove}
+        aria-label={`Delete ${item.title}`}
+        title="Delete item"
+      >
+        <Trash2 size={16} />
+      </button>
+    </div>
   );
 }

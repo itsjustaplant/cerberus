@@ -4,6 +4,8 @@ This project uses Semantic Versioning. Releases use matching `vX.Y.Z` Git tags.
 
 ## Unreleased
 
+- Replace native collection selects with app menus, move item actions into sheet headers, collapse long tweet text, and fix icon corners, Save spacing, and the favicon route.
+
 - Rename the app Cerberus, add app and iPhone Home Screen icons and install metadata, and match toast actions to app buttons.
 
 - Keep the header sticky and add direct item links to save, move, and tag-update toasts.
