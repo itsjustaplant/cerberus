@@ -218,7 +218,7 @@ export async function api(
       return json({ error: error.message }, error.status);
     if (error instanceof SyntaxError || error instanceof TypeError)
       return json({ error: "Invalid request body." }, 400);
-    console.error("Vault API error", error);
+    console.error("Cerberus API error", error);
     return json(
       { error: "Could not save your changes. Please try again." },
       500,

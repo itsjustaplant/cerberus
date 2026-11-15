@@ -9,7 +9,6 @@ import {
   Maximize2,
   ArrowRight,
   ArrowUpRight,
-  Check,
   ChevronRight,
   File as FileIcon,
   Folder,
@@ -19,14 +18,21 @@ import {
   Link2,
   Plus,
   Search,
-  Smartphone,
   Upload,
   X,
   Image as ImageIcon,
   MoveRight,
-  Layers,
 } from "lucide-react";
-import { Form, Link, useNavigate, useRevalidator } from "react-router";
+import {
+  Form,
+  Link,
+  redirect,
+  useNavigate,
+  useRevalidator,
+  type LoaderFunctionArgs,
+} from "react-router";
+import { toast } from "sonner";
+import { collectionPath, itemPath } from "../lib/library-url";
 import { StorageMeter } from "../components/storage-meter";
 import { getStorageUsage } from "../lib/storage.server";
 import {
@@ -43,6 +49,7 @@ import type { Route } from "./+types/home";
 import { cloudflareContext } from "../lib/cloudflare.server";
 import {
   collectionExists,
+  getItem,
   InputError,
   listCollections,
   listItems,
@@ -53,7 +60,7 @@ import { MAX_FILE_SIZE } from "../lib/models";
 
 export function meta() {
   return [
-    { title: "Vault" },
+    { title: "Cerberus" },
     {
       name: "description",
       content: "Links, images, and files.",
@@ -61,10 +68,26 @@ export function meta() {
   ];
 }
 
-export async function loader({ request, context }: Route.LoaderArgs) {
+export async function loader({
+  request,
+  context,
+  params: routeParams,
+}: LoaderFunctionArgs) {
   const { env } = context.get(cloudflareContext);
-  const params = new URL(request.url).searchParams;
-  const collection = params.get("collection");
+  const url = new URL(request.url);
+  const params = url.searchParams;
+  if (params.has("collection") || params.has("view")) {
+    const legacyCollection = params.get("collection");
+    const path = legacyCollection
+      ? collectionPath(legacyCollection)
+      : params.get("view") === "collections"
+        ? "/collections"
+        : "/";
+    params.delete("collection");
+    params.delete("view");
+    throw redirect(path + (params.size ? `?${params}` : ""));
+  }
+  const collection = routeParams.collectionId || null;
   if (collection) {
     try {
       await collectionExists(env, collection);
@@ -90,31 +113,37 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       throw new Response(error.message, { status: 400 });
     throw error;
   }
-  const [collections, results, tags, storage] = await Promise.all([
+  const [collections, results, tags, storage, focusedItem] = await Promise.all([
     listCollections(env),
     listItems(env, collection, query, kind, page, selectedTags),
     listTags(env, collection),
     getStorageUsage(env),
+    collection && routeParams.itemId
+      ? getItem(env, collection, routeParams.itemId)
+      : null,
   ]);
+  if (routeParams.itemId && !focusedItem)
+    throw new Response("Item not found", { status: 404 });
   return {
     collections,
     storage,
     tags,
     selectedTags,
     items: results.slice(0, 48),
+    focusedItem,
     page,
     hasMore: results.length > 48,
     collection,
     query,
     kind,
-    view: params.get("view") || "items",
+    view: "items",
   };
 }
 
 function Mark() {
   return (
     <span className="brand-mark" aria-hidden="true">
-      <Layers size={20} strokeWidth={1.6} />
+      <img src="/icons/icon-192.png" width={32} height={32} alt="" />
     </span>
   );
 }
@@ -138,22 +167,23 @@ function iconFor(kind: string, size = 20) {
   );
 }
 
-type Modal = "collection" | "save" | "phone" | null;
+type Modal = "collection" | "save" | null;
+type ItemDestination = Pick<Item, "id" | "collection_id">;
 
 export default function Home({ loaderData: data }: Route.ComponentProps) {
   const [modal, setModal] = useState<Modal>(null);
   const [moving, setMoving] = useState<Item | null>(null);
   const [tagging, setTagging] = useState<Item | null>(null);
   const [deleting, setDeleting] = useState<Item | null>(null);
-  const [notice, setNotice] = useState("");
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
-  const activeItem = data.items.find((item) => item.id === activeItemId);
+  const activeItem =
+    data.focusedItem || data.items.find((item) => item.id === activeItemId);
   const searchRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const hasPendingArchives =
     !data.storage.ready ||
-    data.items.some(
+    [...data.items, ...(data.focusedItem ? [data.focusedItem] : [])].some(
       (item) =>
         item.tweet?.status === "pending" &&
         Date.now() - Date.parse(item.tweet.attempted_at) < 120000,
@@ -172,19 +202,37 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
   const title = collectionsView ? "Collections" : selected?.name || "All items";
   const description =
     !collectionsView && selected?.id !== "inbox" ? selected?.description : "";
-  function saved(message: string) {
-    setNotice(message);
+  function saved(message: string, item?: ItemDestination) {
+    toast.success(
+      message,
+      item
+        ? {
+            action: {
+              label: "View item",
+              onClick: () => {
+                void navigate(itemPath(item.collection_id, item.id));
+              },
+            },
+          }
+        : undefined,
+    );
     setModal(null);
     setMoving(null);
     void revalidator.revalidate();
   }
-  function filterUrl(kind: string, tags = data.selectedTags) {
+  const libraryPath = data.collection ? collectionPath(data.collection) : "/";
+  function filterUrl(
+    kind: string,
+    tags = data.selectedTags,
+    page = 1,
+    query = data.query,
+  ) {
     const params = new URLSearchParams();
-    if (data.collection) params.set("collection", data.collection);
-    if (data.query) params.set("q", data.query);
+    if (query) params.set("q", query);
     if (kind) params.set("kind", kind);
     for (const tag of tags) params.append("tag", tag);
-    return `/?${params}`;
+    if (page > 1) params.set("page", String(page));
+    return libraryPath + (params.size ? `?${params}` : "");
   }
   return (
     <div className="app-shell">
@@ -192,8 +240,8 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
         <Link
           to="/"
           className="rail-home"
-          aria-label="Vault home"
-          title="Vault home"
+          aria-label="Cerberus home"
+          title="Cerberus home"
         >
           <Mark />
         </Link>
@@ -208,7 +256,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           <Grid2X2 size={20} />
         </Link>
         <Link
-          to="/?view=collections"
+          to="/collections"
           className={`rail-button ${collectionsView ? "active" : ""}`}
           aria-label="Collections"
           title="Collections"
@@ -216,28 +264,12 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
         >
           <Folder size={20} />
         </Link>
-        <button
-          className="rail-button"
-          onClick={() => setModal("save")}
-          aria-label="Save item"
-          title="Save item"
-        >
-          <Plus size={20} />
-        </button>
-        <button
-          className="rail-button rail-phone"
-          onClick={() => setModal("phone")}
-          aria-label="Save from phone"
-          title="Save from phone"
-        >
-          <Smartphone size={20} />
-        </button>
       </nav>
       <aside className="sidebar">
         <Link to="/" className="brand">
           <Mark />
           <span>
-            vault<span className="brand-dot">.</span>
+            Cerberus<span className="brand-dot">.</span>
           </span>
         </Link>
         <div className="workspace-label">Library</div>
@@ -251,14 +283,14 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           </Link>
           <Link
             className={`nav-link ${data.collection === "inbox" ? "selected" : ""}`}
-            to="/?collection=inbox"
+            to="/collections/inbox"
           >
             <Inbox size={18} />
             Inbox<span className="nav-count">{inbox?.count || 0}</span>
           </Link>
           <Link
             className={`nav-link ${collectionsView ? "selected" : ""}`}
-            to="/?view=collections"
+            to="/collections"
           >
             <Folder size={18} />
             Collections
@@ -282,7 +314,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
               <Link
                 key={c.id}
                 className={`nav-link ${data.collection === c.id ? "selected" : ""}`}
-                to={`/?collection=${c.id}`}
+                to={collectionPath(c.id)}
               >
                 <span className={`collection-dot tone-${i % 4}`} />
                 <span className="truncate">{c.name}</span>
@@ -298,14 +330,16 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           </button>
         </nav>
         <div className="sidebar-bottom">
-          <button className="phone-button" onClick={() => setModal("phone")}>
-            <Smartphone size={18} />
-            <span>Save from phone</span>
-            <ArrowUpRight size={15} />
+          <button
+            className="button primary sidebar-save"
+            onClick={() => setModal("save")}
+          >
+            Save item
+            <Plus size={16} />
           </button>
           <div className="profile">
             <span className="avatar">A</span>
-            <span>Vault</span>
+            <span>Cerberus</span>
             <span className="version">v0.0.1</span>
           </div>
         </div>
@@ -314,7 +348,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
         <header className="topbar">
           <Link to="/" className="mobile-brand">
             <Mark />
-            vault.
+            Cerberus
           </Link>
           <div className="breadcrumb">
             <span>Library</span>
@@ -333,18 +367,9 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             >
               <Search size={18} />
             </button>
-            <span className="top-divider" />
-            <button
-              className="button primary topbar-save"
-              aria-label="Save item"
-              onClick={() => setModal("save")}
-            >
-              <Plus size={16} />
-              <span>Save item</span>
-            </button>
           </div>
         </header>
-        <main className="main-content">
+        <main className="main-content" data-page-content>
           <div className="page-heading">
             <div>
               <h1>
@@ -367,19 +392,6 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
               </span>
             )}
           </div>
-          {notice && (
-            <div className="notice" role="status">
-              <Check size={16} />
-              {notice}
-              <button
-                className="icon-button"
-                aria-label="Dismiss message"
-                onClick={() => setNotice("")}
-              >
-                <X size={16} />
-              </button>
-            </div>
-          )}
           {collectionsView ? (
             <div className="collections-grid">
               {data.collections.map((c, i) => (
@@ -410,7 +422,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                           {data.collections.length.toString().padStart(2, "0")}
                         </span>
                       </h2>
-                      <Link to="/?view=collections" className="text-link">
+                      <Link to="/collections" className="text-link">
                         View all
                         <ArrowRight size={14} />
                       </Link>
@@ -460,17 +472,11 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                   </nav>
                   <Form
                     method="get"
+                    action={libraryPath}
                     className="search-form"
                     key={`${data.collection}-${data.query}`}
                     role="search"
                   >
-                    {data.collection && (
-                      <input
-                        type="hidden"
-                        name="collection"
-                        value={data.collection}
-                      />
-                    )}
                     {data.kind && (
                       <input type="hidden" name="kind" value={data.kind} />
                     )}
@@ -492,10 +498,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                     {data.query && (
                       <Link
                         className="icon-button"
-                        to={filterUrl(data.kind).replace(
-                          /([?&])q=[^&]*&?/,
-                          "$1",
-                        )}
+                        to={filterUrl(data.kind, data.selectedTags, 1, "")}
                         aria-label="Clear search"
                       >
                         <X size={14} />
@@ -579,24 +582,11 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                       <p>Try another search or clear the filters.</p>
                     )}
                     {data.query || data.kind || data.selectedTags.length ? (
-                      <Link
-                        className="button secondary"
-                        to={
-                          data.collection
-                            ? `/?collection=${data.collection}`
-                            : "/"
-                        }
-                      >
+                      <Link className="button secondary" to={libraryPath}>
                         Clear filters
                       </Link>
                     ) : (
-                      <button
-                        className="button primary"
-                        onClick={() => setModal("save")}
-                      >
-                        <Plus size={16} />
-                        Save item
-                      </button>
+                      <p>Use Save to add your first link, image, or file.</p>
                     )}
                   </div>
                 )}
@@ -605,7 +595,11 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                     {data.page > 1 ? (
                       <Link
                         className="button secondary"
-                        to={`${filterUrl(data.kind)}&page=${data.page - 1}`}
+                        to={filterUrl(
+                          data.kind,
+                          data.selectedTags,
+                          data.page - 1,
+                        )}
                       >
                         Previous
                       </Link>
@@ -616,7 +610,11 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                     {data.hasMore ? (
                       <Link
                         className="button secondary"
-                        to={`${filterUrl(data.kind)}&page=${data.page + 1}`}
+                        to={filterUrl(
+                          data.kind,
+                          data.selectedTags,
+                          data.page + 1,
+                        )}
                       >
                         Next <ArrowRight size={14} />
                       </Link>
@@ -639,14 +637,14 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           <span>All items</span>
         </Link>
         <Link
-          to="/?collection=inbox"
+          to="/collections/inbox"
           className={data.collection === "inbox" ? "active" : ""}
         >
           <Inbox size={21} />
           <span>Inbox</span>
         </Link>
         <Link
-          to="/?view=collections"
+          to="/collections"
           className={
             collectionsView || (data.collection && data.collection !== "inbox")
               ? "active"
@@ -672,7 +670,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             item={tagging}
             onSave={() => {
               setTagging(null);
-              saved("Tags updated.");
+              saved("Tags updated.", tagging);
             }}
           />
         )}
@@ -701,7 +699,13 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
       </SheetShell>
       <SheetShell
         open={!!activeItem}
-        onClose={() => setActiveItemId(null)}
+        onClose={() => {
+          setActiveItemId(null);
+          if (data.focusedItem)
+            void navigate(collectionPath(data.focusedItem.collection_id), {
+              replace: true,
+            });
+        }}
         title={activeItem?.tweet ? "Saved post" : activeItem?.title || "Item"}
       >
         {activeItem?.tweet ? (
@@ -724,7 +728,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
         <CreateCollection
           onSave={(id) => {
             saved("Collection created.");
-            void navigate(`/?collection=${id}`);
+            void navigate(collectionPath(id));
           }}
         />
       </SheetShell>
@@ -737,7 +741,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           key={modal === "save" ? "open" : "closed"}
           collections={data.collections}
           selected={data.collection || "inbox"}
-          onSave={() => saved("Item saved.")}
+          onSave={(item) => saved("Item saved.", item)}
         />
       </SheetShell>
       <SheetShell
@@ -750,17 +754,9 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           <MoveItem
             item={moving}
             collections={data.collections}
-            onSave={() => saved("Item moved.")}
+            onSave={(item) => saved("Item moved.", item)}
           />
         )}
-      </SheetShell>
-      <SheetShell
-        open={modal === "phone"}
-        onClose={() => setModal(null)}
-        title="Save from phone"
-        description="Send a link from an iOS Shortcut, Android automation, or any HTTP client."
-      >
-        <PhoneHelp />
       </SheetShell>
     </div>
   );
@@ -774,10 +770,7 @@ function CollectionCard({
   tone: number;
 }) {
   return (
-    <Link
-      to={`/?collection=${c.id}`}
-      className={`collection-card tone-${tone}`}
-    >
+    <Link to={collectionPath(c.id)} className={`collection-card tone-${tone}`}>
       <div className="collection-card-top">
         <span className="folder-tile">
           {c.id === "inbox" ? (
@@ -933,6 +926,7 @@ async function send(
   const result = (await response.json()) as {
     error?: string;
     collection?: { id: string };
+    item?: ItemDestination;
     cleanup_pending?: boolean;
   };
   if (!response.ok)
@@ -1020,7 +1014,7 @@ function SaveItem({
 }: {
   collections: Collection[];
   selected: string;
-  onSave: () => void;
+  onSave: (item: ItemDestination) => void;
 }) {
   const [mode, setMode] = useState<"link" | "file">("link");
   const [error, setError] = useState("");
@@ -1037,11 +1031,11 @@ function SaveItem({
     }
     setBusy(true);
     try {
-      await send(
+      const result = await send(
         "/api/items",
         mode === "file" ? form : Object.fromEntries(form),
       );
-      onSave();
+      onSave(result.item!);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1122,7 +1116,7 @@ function SaveItem({
           </p>
         )}
         <button disabled={busy} className="button primary form-submit">
-          {busy ? "Saving…" : "Save to vault"}
+          {busy ? "Saving…" : "Save to Cerberus"}
           <Plus size={16} />
         </button>
       </form>
@@ -1137,7 +1131,7 @@ function MoveItem({
 }: {
   item: Item;
   collections: Collection[];
-  onSave: () => void;
+  onSave: (item: ItemDestination) => void;
 }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1145,13 +1139,10 @@ function MoveItem({
     event.preventDefault();
     setBusy(true);
     setError("");
+    const form = new FormData(event.currentTarget);
     try {
-      await send(
-        `/api/items/${item.id}`,
-        Object.fromEntries(new FormData(event.currentTarget)),
-        "PATCH",
-      );
-      onSave();
+      await send(`/api/items/${item.id}`, Object.fromEntries(form), "PATCH");
+      onSave({ id: item.id, collection_id: String(form.get("collection_id")) });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1174,31 +1165,6 @@ function MoveItem({
         <MoveRight size={16} />
       </button>
     </form>
-  );
-}
-
-function PhoneHelp() {
-  return (
-    <div className="phone-help">
-      <p>
-        Send a <code>POST</code> request to <code>/api/capture</code> on your
-        Vault’s address, with JSON or form data:
-      </p>
-      <pre>
-        {'{\n  "url": "https://example.com",\n  "title": "Example link"\n}'}
-      </pre>
-      <p>
-        Only <code>url</code> is required. Links land in Inbox so you can sort
-        them later.
-      </p>
-      <div className="help-note">
-        <Inbox size={19} />
-        <span>
-          This endpoint is open without a token. It accepts links only, limited
-          to 30 requests per minute per IP at each Cloudflare location.
-        </span>
-      </div>
-    </div>
   );
 }
 

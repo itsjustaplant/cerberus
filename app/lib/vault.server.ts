@@ -93,6 +93,16 @@ export async function listItems(
   return attachTweetArchives(env, await attachTags(env, items));
 }
 
+export async function getItem(env: Env, collectionId: string, itemId: string) {
+  const item = await env.DB.prepare(
+    "SELECT id, collection_id, kind, title, url, filename, content_type, size, created_at FROM items WHERE id = ? AND collection_id = ?",
+  )
+    .bind(itemId, collectionId)
+    .first<Item>();
+  if (!item) return null;
+  return (await attachTweetArchives(env, await attachTags(env, [item])))[0];
+}
+
 export async function createLink(
   env: Env,
   fields: Record<string, unknown>,

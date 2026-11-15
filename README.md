@@ -1,14 +1,14 @@
-# Vault
+# Cerberus
 
 A quiet, personal home for links, images, and files. Create collections, save
 things worth keeping, and sort them whenever you’re ready. The responsive dark
-interface uses black, white, and orange, with sharp corners and monospace type
-inspired by Lyra. It uses a sidebar on desktop and bottom navigation on phones.
+interface uses charcoal surfaces, Inter typography, and square panels. It uses
+a workspace rail and sidebar on desktop and bottom navigation on phones.
 
 ## Stack and storage
 
 - React Router, React, TypeScript, and Cloudflare Workers.
-- Base UI for accessible dialogs; Lucide for icons; plain CSS for styling.
+- Base UI for accessible sheets and image viewing; Sonner for toasts; Lucide for icons.
 - One D1 database (`DB`) holds collections and all item metadata.
 - One private R2 bucket (`FILES`, `vault-files`) holds uploaded files and images.
 - A seeded **Inbox** collection receives unclassified items. Collections share
@@ -41,6 +41,15 @@ Open the Network URL printed by Vite. Verify creating a collection, saving a
 link, uploading an image and a file, opening/downloading them, moving an Inbox
 item to a collection, and searching/filtering. Check dialogs with the keyboard
 open, portrait/landscape layouts, and bottom navigation on real hardware.
+
+Library pages use `/`, `/collections`, and `/collections/:id`. Search, type,
+tags, and pagination stay in query parameters. Old `?collection=` and
+`?view=collections` links redirect to the corresponding page without losing filters.
+Save items from the bottom of the desktop sidebar or the mobile bottom navigation.
+The header stays visible while scrolling. Item toasts include a **View item** action
+that opens `/collections/:id/items/:itemId`, including items beyond the first page.
+The image viewer fills the viewport on both desktop and mobile. Page changes use a
+150 ms entrance, with immediate updates for keyboard navigation and reduced motion.
 
 ## Capture a link from your phone
 
@@ -83,13 +92,13 @@ uploaded R2 object. Changing an item’s collection does not duplicate its file.
 
 ## Strict file storage cap
 
-Vault enforces a total **10 GB = 10,000,000,000 bytes** limit across uploaded
+Cerberus enforces a total **10 GB = 10,000,000,000 bytes** limit across uploaded
 files, images, and archived tweet photos in the shared R2 bucket. The top bar
 shows charged storage against this cap, including in-flight reservations.
 Usage refreshes after saves/deletes and periodically while the page is visible.
 The existing 10 MB per-file limit also remains in place.
 
-Apply `0005_storage_quota.sql` before running this version. On first use, Vault
+Apply `0005_storage_quota.sql` before running this version. On first use, Cerberus
 inventories R2, including objects absent from item metadata. Uploads are blocked
 until the inventory is verified. Reservations use an atomic D1 insert guarded by
 a database trigger; all R2 writes go through this gate and reserve the exact
@@ -141,7 +150,7 @@ links) trigger a background archive after the link is safely saved. The phone
 capture endpoint behaves the same way. Apply migration `0002_tweet_archives.sql`
 locally or remotely before running this version.
 
-Vault uses [FxTwitter’s public API](https://github.com/FxEmbed/FxEmbed/wiki/Status-Fetch-API)
+Cerberus uses [FxTwitter’s public API](https://github.com/FxEmbed/FxEmbed/wiki/Status-Fetch-API)
 without an API key to retrieve the post. This sends the post ID to FxTwitter.
 It captures the username, display name, UTC post date, full returned post text,
 and attached photos. Metadata stays in D1; original-resolution photo bytes are
@@ -212,3 +221,13 @@ and create a matching `vX.Y.Z` tag only when a release or bump is requested.
 Use `main` as the integration branch and conventional task branches. Follow
 `AGENTS.md`: implement, check, obtain explicit user verification, then commit
 using a Conventional Commit and merge locally into `main`. Push only when asked.
+
+## Install on iPhone
+
+Open the deployed Cerberus site in Safari, choose **Share → Add to Home Screen**,
+and confirm **Cerberus**. The Home Screen shortcut uses the supplied Cerberus artwork
+and opens as a standalone app. An existing shortcut may need to be removed and added
+again to refresh its name and icon. Installation does not add offline storage.
+
+The Cloudflare Worker, D1 database, and R2 bucket retain their existing infrastructure
+names so the renamed app continues to use the same saved library.

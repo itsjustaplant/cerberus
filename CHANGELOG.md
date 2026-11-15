@@ -4,6 +4,14 @@ This project uses Semantic Versioning. Releases use matching `vX.Y.Z` Git tags.
 
 ## Unreleased
 
+- Rename the app Cerberus, add app and iPhone Home Screen icons and install metadata, and match toast actions to app buttons.
+
+- Keep the header sticky and add direct item links to save, move, and tag-update toasts.
+
+- Add path-based collection navigation with redirects for existing links.
+- Consolidate Save actions, replace notices with toasts, and make the image viewer full-width.
+- Add brief page transitions with keyboard and reduced-motion support.
+
 - Add a top-bar storage meter and a strict shared 10 GB quota for all R2 writes.
 - Reserve exact file bytes atomically and retain charges for uncertain writes or pending deletes.
 

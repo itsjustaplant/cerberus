@@ -4,6 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { UNSAFE_decodeViaTurboStream as decodeRouteData } from "react-router";
 
 // Use a disposable D1/R2 directory so checks never modify the development library.
 const storage = await mkdtemp(join(tmpdir(), "vault-integration-"));
@@ -84,7 +85,54 @@ try {
     await delay(200);
   }
   assert.ok(ready, logs);
-  assert.match(await page(), /No items yet/);
+  const emptyLibrary = await page();
+  assert.match(emptyLibrary, /No items yet/);
+  assert.match(emptyLibrary, /<title>Cerberus<\/title>/);
+  assert.match(
+    emptyLibrary,
+    /name="apple-mobile-web-app-title" content="Cerberus"/,
+  );
+  assert.match(
+    emptyLibrary,
+    /rel="apple-touch-icon" sizes="180x180" href="\/apple-touch-icon.png"/,
+  );
+  const manifestResponse = await fetch(base + "/manifest.webmanifest");
+  assert.equal(manifestResponse.status, 200);
+  const manifest = await manifestResponse.json();
+  assert.equal(manifest.name, "Cerberus");
+  assert.equal(manifest.display, "standalone");
+  for (const icon of [
+    ...manifest.icons,
+    { src: "/apple-touch-icon.png" },
+    { src: "/favicon-32.png" },
+  ]) {
+    const response = await fetch(base + icon.src);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type"), /image\/png/);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    assert.deepEqual([...bytes.slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  }
+
+  assert.doesNotMatch(emptyLibrary, /Save from phone|topbar-save|rail-phone/);
+  assert.match(await page("/collections"), /<h1>Collections/);
+  // Client navigation uses Single Fetch rather than a document request.
+  const collectionsData = await fetch(base + "/collections.data");
+  assert.equal(collectionsData.status, 200);
+  const decodedCollections = await decodeRouteData(
+    collectionsData.body,
+    globalThis,
+  );
+  await decodedCollections.done;
+  assert.equal(
+    decodedCollections.value["routes/collections"].data.view,
+    "collections",
+  );
+  assert.equal((await fetch(base + "/collections/missing")).status, 404);
+  const legacyView = await fetch(base + "/?view=collections", {
+    redirect: "manual",
+  });
+  assert.equal(legacyView.status, 302);
+  assert.equal(legacyView.headers.get("Location"), "/collections");
   const { collection } = await api("/api/collections", {
     name: "Research & references",
     description: "Integration fixture",
@@ -95,6 +143,25 @@ try {
     collection_id: collection.id,
   });
   assert.equal(link.collection_id, collection.id);
+  const collectionPath = `/collections/${collection.id}`;
+  assert.match(await page(collectionPath), /A useful reference/);
+  assert.match(
+    await page(`${collectionPath}?q=useful&kind=link`),
+    /A useful reference/,
+  );
+  assert.doesNotMatch(
+    await page(`${collectionPath}?q=no-matching-result`),
+    /A useful reference/,
+  );
+  const legacyCollection = await fetch(
+    base + `/?collection=${collection.id}&q=useful&kind=link`,
+    { redirect: "manual" },
+  );
+  assert.equal(legacyCollection.status, 302);
+  assert.equal(
+    legacyCollection.headers.get("Location"),
+    `${collectionPath}?q=useful&kind=link`,
+  );
   assert.match(
     await page(`/?collection=${collection.id}`),
     /A useful reference/,
@@ -226,13 +293,36 @@ try {
       collection_id: collection.id,
     });
   }
-  const pageOne = await page(`/?collection=${collection.id}`);
-  const pageTwo = await page(`/?collection=${collection.id}&page=2`);
+  const pageOne = await page(collectionPath);
+  const pageTwo = await page(`${collectionPath}?page=2`);
+  assert.match(pageOne, new RegExp(`href="${collectionPath}\\?page=2"`));
+  assert.match(pageTwo, new RegExp(`href="${collectionPath}"`));
   assert.match(pageOne, /Library pages/);
   assert.match(pageOne, /Pagination fixture 49/);
   assert.doesNotMatch(pageOne, /Pagination fixture 0</);
   assert.match(pageTwo, /Pagination fixture 0</);
   assert.match(pageTwo, /Previous/);
+  const itemPath = `${collectionPath}/items/${link.id}`;
+  assert.equal((await fetch(base + itemPath)).status, 200);
+  const itemData = await fetch(base + `${itemPath}.data`);
+  assert.equal(itemData.status, 200);
+  const decodedItem = await decodeRouteData(itemData.body, globalThis);
+  await decodedItem.done;
+  const focusedPage = decodedItem.value["routes/item"].data;
+  assert.equal(focusedPage.focusedItem.id, link.id);
+  assert.equal(focusedPage.focusedItem.collection_id, collection.id);
+  assert.ok(
+    !focusedPage.items.some((item) => item.id === link.id),
+    "Direct item links must work beyond the first page",
+  );
+  assert.equal(
+    (await fetch(base + `/collections/inbox/items/${link.id}`)).status,
+    404,
+  );
+  assert.equal(
+    (await fetch(base + `${collectionPath}/items/missing`)).status,
+    404,
+  );
   const { item: tagged } = await api("/api/items", {
     url: "https://example.com/tagged",
     title: "Tagged item fixture",
@@ -325,7 +415,7 @@ try {
     await api(`/api/items/${tweet.id}`, { tags: [] }, 200, "PATCH");
     assert.match(await page("/?tag=twitter"), /View saved post/);
     console.log(
-      `PASS: live post archive — @${archive.username}, ${archive.photos.length} image(s) copied to R2 and served by Vault.`,
+      `PASS: live post archive — @${archive.username}, ${archive.photos.length} image(s) copied to R2 and served by Cerberus.`,
     );
     const deletedPhotoIds = archive.photos.map((photo) => photo.id);
     await api(`/api/items/${tweet.id}`, {}, 200, "DELETE");

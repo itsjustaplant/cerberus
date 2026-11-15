@@ -102,7 +102,7 @@ export async function fetchTweet(
     signal,
     headers: {
       Accept: "application/json",
-      "User-Agent": "Vault/0.0.1 (personal post archive)",
+      "User-Agent": "Cerberus/0.0.1 (personal post archive)",
     },
   });
   if (!response.ok)

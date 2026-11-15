@@ -1,4 +1,4 @@
-// shadcn/ui Base UI Sheet, adapted to Vault's CSS theme.
+// shadcn/ui Base UI Sheet, adapted to Cerberus's CSS theme.
 // https://ui.shadcn.com/docs/components/base/sheet
 import type { ComponentProps } from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
