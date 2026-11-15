@@ -36,6 +36,7 @@ import {
 import { Select } from "@base-ui/react/select";
 import { toast } from "sonner";
 import { collectionPath, itemPath } from "../lib/library-url";
+import { CerberusMark } from "../components/cerberus-mark";
 import { StorageMeter } from "../components/storage-meter";
 import { getStorageUsage } from "../lib/storage.server";
 import {
@@ -146,7 +147,7 @@ export async function loader({
 function Mark() {
   return (
     <span className="brand-mark" aria-hidden="true">
-      <img src="/icons/icon-192.png" width={32} height={32} alt="" />
+      <CerberusMark />
     </span>
   );
 }
@@ -350,10 +351,8 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             Save item
             <Plus size={16} />
           </button>
-          <div className="profile">
-            <span className="avatar">A</span>
-            <span>Cerberus</span>
-            <span className="version">v0.0.1</span>
+          <div className="sidebar-storage">
+            <StorageMeter usage={data.storage} placement="sidebar" />
           </div>
         </div>
       </aside>
@@ -369,7 +368,9 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             <span>{title}</span>
           </div>
           <div className="topbar-actions">
-            <StorageMeter usage={data.storage} />
+            <div className="mobile-storage">
+              <StorageMeter usage={data.storage} />
+            </div>
           </div>
         </header>
         <main className="main-content" data-page-content>

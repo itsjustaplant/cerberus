@@ -13,6 +13,7 @@ import { PageTransitions } from "./components/page-transitions";
 import "sonner/dist/styles.css";
 import "./app.css";
 import "./agents-theme.css";
+import "./strawhat-theme.css";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
