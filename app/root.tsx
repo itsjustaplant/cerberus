@@ -9,23 +9,38 @@ import {
 } from "react-router";
 import type { Route } from "./+types/root";
 import { Toaster } from "sonner";
+import {
+  ThemeProvider,
+  themeInit,
+  useTheme,
+} from "./components/theme-provider";
 import { PageTransitions } from "./components/page-transitions";
 import "sonner/dist/styles.css";
 import "./app.css";
 import "./agents-theme.css";
 import "./strawhat-theme.css";
+import "./light-theme.css";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
         />
-        <meta name="theme-color" content="#1a1a1a" />
-        <meta name="color-scheme" content="dark" />
+        <meta
+          name="theme-color"
+          content="#faf9f7"
+          media="(prefers-color-scheme: light)"
+        />
+        <meta
+          name="theme-color"
+          content="#0d0d10"
+          media="(prefers-color-scheme: dark)"
+        />
+        <meta name="color-scheme" content="light dark" />
         <meta name="application-name" content="Cerberus" />
         <meta name="apple-mobile-web-app-title" content="Cerberus" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -46,47 +61,57 @@ export function Layout({ children }: { children: React.ReactNode }) {
           sizes="32x32"
           href="/favicon-32.png"
         />
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
         <Meta />
         <Links />
       </head>
       <body>
-        <div className="root">{children}</div>
-        <Toaster
-          theme="dark"
-          position="bottom-right"
-          closeButton
-          mobileOffset={{
-            bottom: "calc(88px + env(safe-area-inset-bottom))",
-            left: 16,
-            right: 16,
-          }}
-          toastOptions={{
-            classNames: { toast: "cerberus-toast" },
-            actionButtonStyle: {
-              fontFamily: "inherit",
-              fontSize: 13,
-              fontWeight: 400,
-              borderRadius: 0,
-              minHeight: 38,
-              height: "auto",
-              padding: "8px 14px",
-              border: "1px solid #efeef7",
-              background: "#efeef7",
-              color: "#171717",
-            },
-            style: {
-              fontFamily: "Inter, sans-serif",
-              background: "#212121",
-              color: "#ececec",
-              border: "1px solid #424242",
-              borderRadius: 0,
-            },
-          }}
-        />
+        <ThemeProvider>
+          <div className="root">{children}</div>
+          <ThemeToaster />
+        </ThemeProvider>
         <ScrollRestoration />
         <Scripts />
       </body>
     </html>
+  );
+}
+
+function ThemeToaster() {
+  const { resolved } = useTheme();
+  return (
+    <Toaster
+      theme={resolved}
+      position="bottom-right"
+      closeButton
+      mobileOffset={{
+        bottom: "calc(88px + env(safe-area-inset-bottom))",
+        left: 16,
+        right: 16,
+      }}
+      toastOptions={{
+        classNames: { toast: "cerberus-toast" },
+        actionButtonStyle: {
+          fontFamily: "inherit",
+          fontSize: 13,
+          fontWeight: 400,
+          borderRadius: 0,
+          minHeight: 38,
+          height: "auto",
+          padding: "8px 14px",
+          border: "1px solid var(--accent)",
+          background: "var(--accent)",
+          color: "#ffffff",
+        },
+        style: {
+          fontFamily: "Inter, sans-serif",
+          background: "var(--surface)",
+          color: "var(--toast-text)",
+          border: "1px solid var(--border)",
+          borderRadius: 0,
+        },
+      }}
+    />
   );
 }
 

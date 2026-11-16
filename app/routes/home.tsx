@@ -37,6 +37,7 @@ import { Select } from "@base-ui/react/select";
 import { toast } from "sonner";
 import { collectionPath, itemPath } from "../lib/library-url";
 import { CerberusMark } from "../components/cerberus-mark";
+import { ThemeSwitcher } from "../components/theme-switcher";
 import { StorageMeter } from "../components/storage-meter";
 import { getStorageUsage } from "../lib/storage.server";
 import {
@@ -368,6 +369,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             <span>{title}</span>
           </div>
           <div className="topbar-actions">
+            <ThemeSwitcher />
             <div className="mobile-storage">
               <StorageMeter usage={data.storage} />
             </div>

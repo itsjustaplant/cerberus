@@ -1,11 +1,15 @@
 /* Quiet dark workspace inspired by the supplied Strawhat reference. */
 :root {
+  color-scheme: dark;
   color: #ededee;
   background: #0d0d10;
   --surface: #101013;
   --border: #29292e;
   --muted: #98989f;
-  --accent: #ff4b3a;
+  --accent: #d00000;
+  --toast-text: #ededee;
+  --pressed-surface: #272024;
+  --pressed-text: #ffb0a6;
   --accent-soft: #321514;
   --selection: #321514;
 }
@@ -70,7 +74,7 @@
   color: #efeff6;
 }
 .nav-link.selected svg {
-  color: #ff4b3a;
+  color: #ff8879;
 }
 .nav-count,
 .version {
@@ -193,8 +197,8 @@ h1 {
 }
 .primary {
   background: var(--accent);
-  color: #180e0c;
-  border-color: #ff4b3a;
+  color: #ffffff;
+  border-color: #d00000;
 }
 .secondary {
   background: transparent;
@@ -240,8 +244,8 @@ h1 {
     background: #121217;
   }
   .primary:hover {
-    background: #ff8879;
-    border-color: #ff8879;
+    background: #ad0000;
+    border-color: #ad0000;
   }
 }
 @media (max-width: 1100px) and (min-width: 701px) {
@@ -546,5 +550,71 @@ html[data-input-modality="keyboard"] .storage-segment {
 @media (prefers-reduced-motion: reduce) {
   .cerberus-logo .cerberus-flame {
     animation: none;
+  }
+}
+
+/* Transparent vector branding, without a tile or a surrounding border. */
+.brand .brand-mark,
+.mobile-brand .brand-mark,
+.rail-home .brand-mark {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+:root[data-theme="dark"] {
+  .cerberus-guardian {
+    fill: #ededee;
+  }
+  .cerberus-eyes {
+    fill: #101010;
+  }
+}
+
+.theme-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--toast-text);
+  font-size: 12px;
+}
+.theme-options {
+  min-width: 150px;
+}
+.theme-trigger:active {
+  background: var(--selection);
+}
+@media (hover: hover) and (pointer: fine) {
+  .theme-trigger:hover {
+    border-color: var(--accent);
+  }
+}
+@media (max-width: 380px) {
+  .theme-trigger {
+    gap: 5px;
+    padding-inline: 6px;
+  }
+  .theme-trigger > svg:first-child {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .theme-trigger {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+  .theme-trigger .theme-value,
+  .theme-trigger > span:last-child {
+    display: none;
+  }
+  .theme-trigger > svg:first-child {
+    display: block;
   }
 }

@@ -1231,12 +1231,12 @@ h1 {
 .nav-link:active,
 .mobile-nav a:active,
 .mobile-nav button:active {
-  background: #292929;
-  color: #e1e1e1;
+  background: var(--pressed-surface, #292929);
+  color: var(--pressed-text, #e1e1e1);
 }
 .collection-card:active {
-  background: #1c1c1c;
-  border-color: #4b4b4b;
+  background: var(--pressed-surface, #1c1c1c);
+  border-color: var(--border);
 }
 .text-link:active,
 .brand:active,
@@ -1437,7 +1437,7 @@ h1 {
   }
 }
 .tweet-preview:active {
-  background: #1c1c1c;
+  background: var(--pressed-surface, #1c1c1c);
 }
 
 /* Every saved item uses the same fixed card and preview geometry. */
@@ -1590,7 +1590,7 @@ h1 {
   background: var(--accent-soft);
 }
 .tag-filter:active {
-  background: #242424;
+  background: var(--pressed-surface, #242424);
 }
 .field-hint {
   font-size: 10px;
