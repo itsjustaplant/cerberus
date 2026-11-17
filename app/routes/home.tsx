@@ -281,9 +281,9 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
         </Link>
       </nav>
       <aside className="sidebar">
-        <Link to="/" className="brand">
+        <Link to="/" className="brand" aria-label="Cerberus home">
           <Mark />
-          <span>
+          <span className="sidebar-brand-name">
             Cerberus<span className="brand-dot">.</span>
           </span>
         </Link>
@@ -292,35 +292,36 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           <Link
             className={`nav-link ${!data.collection && !collectionsView ? "selected" : ""}`}
             to="/"
+            aria-label="All items"
+            title="All items"
           >
             <Grid2X2 size={17} />
-            All items<span className="nav-count">{total}</span>
+            <span className="nav-label">All items</span>
+            <span className="nav-count">{total}</span>
           </Link>
           <Link
             className={`nav-link ${data.collection === "inbox" ? "selected" : ""}`}
             to="/collections/inbox"
+            aria-label="Inbox"
+            title="Inbox"
           >
             <Inbox size={18} />
-            Inbox<span className="nav-count">{inbox?.count || 0}</span>
+            <span className="nav-label">Inbox</span>
+            <span className="nav-count">{inbox?.count || 0}</span>
           </Link>
           <Link
             className={`nav-link ${collectionsView ? "selected" : ""}`}
             to="/collections"
+            aria-label="Collections"
+            title="Collections"
           >
             <Folder size={18} />
-            Collections
+            <span className="nav-label">Collections</span>
             <span className="nav-count">{data.collections.length}</span>
           </Link>
         </nav>
         <div className="sidebar-section">
           <span>Collections</span>
-          <button
-            className="icon-button"
-            aria-label="New collection"
-            onClick={() => setModal("collection")}
-          >
-            <Plus size={16} />
-          </button>
         </div>
         <nav className="collection-nav" aria-label="Collections">
           {data.collections
@@ -330,30 +331,39 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                 key={c.id}
                 className={`nav-link ${data.collection === c.id ? "selected" : ""}`}
                 to={collectionPath(c.id)}
+                aria-label={c.name}
+                title={c.name}
               >
-                <span className={`collection-dot tone-${i % 4}`} />
-                <span className="truncate">{c.name}</span>
+                <Folder size={17} />
+                <span className="truncate nav-label">{c.name}</span>
                 <span className="nav-count">{c.count}</span>
               </Link>
             ))}
           <button
             className="nav-link new-collection"
+            aria-label="New collection"
+            title="New collection"
             onClick={() => setModal("collection")}
           >
             <Plus size={17} />
-            New collection
+            <span className="nav-label">New collection</span>
           </button>
         </nav>
         <div className="sidebar-bottom">
           <button
             className="button primary sidebar-save"
+            aria-label="Save item"
+            title="Save item"
             onClick={() => setModal("save")}
           >
-            Save item
+            <span className="nav-label">Save item</span>
             <Plus size={16} />
           </button>
           <div className="sidebar-storage">
             <StorageMeter usage={data.storage} placement="sidebar" />
+          </div>
+          <div className="sidebar-theme">
+            <ThemeSwitcher placement="sidebar" />
           </div>
         </div>
       </aside>
@@ -369,7 +379,9 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             <span>{title}</span>
           </div>
           <div className="topbar-actions">
-            <ThemeSwitcher />
+            <div className="mobile-theme">
+              <ThemeSwitcher />
+            </div>
             <div className="mobile-storage">
               <StorageMeter usage={data.storage} />
             </div>

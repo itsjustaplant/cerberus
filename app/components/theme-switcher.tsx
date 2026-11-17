@@ -6,7 +6,11 @@ const options = [
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
 ];
-export function ThemeSwitcher() {
+export function ThemeSwitcher({
+  placement = "header",
+}: {
+  placement?: "header" | "sidebar";
+}) {
   const { preference, setPreference } = useTheme();
   const Icon =
     preference === "system" ? Monitor : preference === "light" ? Sun : Moon;
@@ -28,7 +32,8 @@ export function ThemeSwitcher() {
       <Select.Portal>
         <Select.Positioner
           sideOffset={6}
-          align="end"
+          side={placement === "sidebar" ? "top" : "bottom"}
+          align={placement === "sidebar" ? "start" : "end"}
           alignItemWithTrigger={false}
           className="select-positioner"
         >

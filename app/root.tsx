@@ -32,12 +32,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
         />
         <meta
           name="theme-color"
-          content="#faf9f7"
+          content="#ffffff"
           media="(prefers-color-scheme: light)"
         />
         <meta
           name="theme-color"
-          content="#0d0d10"
+          content="#0b090a"
           media="(prefers-color-scheme: dark)"
         />
         <meta name="color-scheme" content="light dark" />
@@ -99,12 +99,12 @@ function ThemeToaster() {
           minHeight: 38,
           height: "auto",
           padding: "8px 14px",
-          border: "1px solid var(--accent)",
-          background: "var(--accent)",
+          border: "1px solid #d00000",
+          background: "#d00000",
           color: "#ffffff",
         },
         style: {
-          fontFamily: "Inter, sans-serif",
+          fontFamily: "inherit",
           background: "var(--surface)",
           color: "var(--toast-text)",
           border: "1px solid var(--border)",

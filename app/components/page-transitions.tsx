@@ -2,13 +2,12 @@ import { useLayoutEffect, useRef } from "react";
 import { useLocation } from "react-router";
 
 export function PageTransitions() {
-  const { pathname, search } = useLocation();
-  const key = pathname + search;
-  const previous = useRef(key);
+  const { pathname } = useLocation();
+  const previous = useRef(pathname);
 
   useLayoutEffect(() => {
-    if (previous.current === key) return;
-    previous.current = key;
+    if (previous.current === pathname) return;
+    previous.current = pathname;
     if (
       document.documentElement.dataset.inputModality === "keyboard" ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -17,7 +16,8 @@ export function PageTransitions() {
 
     const content = document.querySelector("[data-page-content]");
     if (!content) return;
-    // Animate only the new content; navigation and the persistent shell stay immediate.
+    // Filters, search, pagination, and tag revalidation update in place.
+    // Only entering a different page replays the page transition.
     const animation = content.animate(
       [
         { opacity: 0.6, transform: "translateY(4px)" },
@@ -31,7 +31,7 @@ export function PageTransitions() {
       },
     );
     return () => animation.cancel();
-  }, [key]);
+  }, [pathname]);
 
   return null;
 }

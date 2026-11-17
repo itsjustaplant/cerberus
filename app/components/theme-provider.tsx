@@ -38,7 +38,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       document
         .querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')
         .forEach((meta) => {
-          meta.content = theme === "dark" ? "#0d0d10" : "#faf9f7";
+          meta.content = theme === "dark" ? "#0b090a" : "#ffffff";
         });
     }
     const update = () => apply(current);

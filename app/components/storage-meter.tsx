@@ -93,7 +93,7 @@ export function StorageMeter({
       >
         <span className="storage-trigger-label">Storage</span>
         {bar(true)}
-        <span>
+        <span className="storage-trigger-amount">
           {current.ready ? formatBytes(current.usedBytes) : "Checking…"}
         </span>
         <ChevronDown size={12} />
