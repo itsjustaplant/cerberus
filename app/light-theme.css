@@ -126,7 +126,6 @@
 :root[data-theme="light"] .default-label,
 :root[data-theme="light"] .tag-label,
 :root[data-theme="light"] .tag-filter,
-:root[data-theme="light"] .filter-tabs,
 :root[data-theme="light"] .search-form,
 :root[data-theme="light"] .secondary,
 :root[data-theme="light"] .select-trigger {
@@ -136,18 +135,10 @@
   color: #161a1d;
   background: #f5f3f4;
 }
-:root[data-theme="light"] .filter-tabs,
-:root[data-theme="light"] .save-tabs {
-  background: #d3d3d3;
-}
-:root[data-theme="light"] .filter-tab,
-:root[data-theme="light"] .save-tabs button,
 :root[data-theme="light"] .tag-filter {
   color: #161a1db3;
 }
-:root[data-theme="light"] .filter-tab.active,
-:root[data-theme="light"] .tag-filter.active,
-:root[data-theme="light"] .save-tabs button.active {
+:root[data-theme="light"] .tag-filter.active {
   background: #ffffff;
   color: var(--accent);
   border-color: #b1a7a6;
@@ -275,7 +266,6 @@
     color: #ffffff;
   }
   :root[data-theme="light"] .tag-filter:hover,
-  :root[data-theme="light"] .filter-tab:hover,
   :root[data-theme="light"] .text-link:hover {
     color: #161a1d;
   }

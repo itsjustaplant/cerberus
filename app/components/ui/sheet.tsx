@@ -1,12 +1,20 @@
-// shadcn/ui Base UI Sheet, adapted to Cerberus's CSS theme.
-// https://ui.shadcn.com/docs/components/base/sheet
-import type { ComponentProps } from "react";
-import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
-import { X } from "lucide-react";
+// Cerberus side sheet built from Kumo's accessible Dialog primitives.
+import {
+  createContext,
+  useContext,
+  useState,
+  type ComponentProps,
+} from "react";
+import { Dialog as SheetPrimitive } from "@cloudflare/kumo/primitives/dialog";
+import { XIcon as X } from "@phosphor-icons/react";
 
 export const Sheet = SheetPrimitive.Root;
 export const SheetTrigger = SheetPrimitive.Trigger;
 export const SheetClose = SheetPrimitive.Close;
+const SheetPortalContext = createContext<HTMLElement | null>(null);
+export function useSheetPortal() {
+  return useContext(SheetPortalContext);
+}
 
 export function SheetContent({
   className = "",
@@ -14,6 +22,7 @@ export function SheetContent({
   showCloseButton = true,
   ...props
 }: SheetPrimitive.Popup.Props & { showCloseButton?: boolean }) {
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
   return (
     <SheetPrimitive.Portal>
       <SheetPrimitive.Backdrop
@@ -21,12 +30,15 @@ export function SheetContent({
         className="sheet-overlay"
       />
       <SheetPrimitive.Popup
+        ref={setContainer}
         data-slot="sheet-content"
         data-side="right"
         className={`sheet-content ${className}`}
         {...props}
       >
-        {children}
+        <SheetPortalContext.Provider value={container}>
+          {children}
+        </SheetPortalContext.Provider>
         {showCloseButton && (
           <SheetPrimitive.Close
             className="icon-button sheet-close"

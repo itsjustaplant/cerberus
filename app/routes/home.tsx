@@ -1,3 +1,8 @@
+import { Input } from "../components/ui/input";
+import { Checkbox } from "@cloudflare/kumo/components/checkbox";
+import { Textarea } from "@cloudflare/kumo/components/input";
+import { Button } from "../components/ui/button";
+import { Tabs } from "@cloudflare/kumo/components/tabs";
 import {
   ActionContextMenu,
   type ContextAction,
@@ -10,28 +15,29 @@ import {
   type ReactNode,
 } from "react";
 import {
-  Maximize2,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-  ArrowRight,
-  ArrowUpRight,
-  ChevronRight,
-  File as FileIcon,
-  Folder,
-  FolderPlus,
-  Grid2X2,
-  Inbox,
-  Link2,
-  Plus,
-  Search,
-  Upload,
-  X,
-  Image as ImageIcon,
-  MoveRight,
-  ChevronDown,
-  Check,
-} from "lucide-react";
+  ArrowsOutIcon as Maximize2,
+  DotsThreeIcon as MoreHorizontal,
+  PencilSimpleIcon as Pencil,
+  TrashIcon as Trash2,
+  ArrowRightIcon,
+  ArrowSquareOutIcon,
+  ArrowUpRightIcon,
+  CheckSquareIcon,
+  CaretRightIcon as ChevronRight,
+  FileIcon,
+  FolderIcon as Folder,
+  FolderOpenIcon,
+  FolderPlusIcon as FolderPlus,
+  SquaresFourIcon as Grid2X2,
+  TrayIcon as Inbox,
+  LinkIcon as Link2,
+  PlusIcon as Plus,
+  TagIcon,
+  MagnifyingGlassIcon as Search,
+  UploadSimpleIcon as Upload,
+  XIcon as X,
+  ImageIcon,
+} from "@phosphor-icons/react";
 import {
   Form,
   Link,
@@ -40,8 +46,8 @@ import {
   useRevalidator,
   type LoaderFunctionArgs,
 } from "react-router";
-import { Select } from "@base-ui/react/select";
-import { toast } from "sonner";
+import { Select } from "@cloudflare/kumo/components/select";
+import { useKumoToastManager } from "@cloudflare/kumo/components/toast";
 import { collectionPath, itemPath } from "../lib/library-url";
 import { CerberusMark } from "../components/cerberus-mark";
 import { ThemeSwitcher } from "../components/theme-switcher";
@@ -53,6 +59,7 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
+  useSheetPortal,
 } from "../components/ui/sheet";
 import { ItemDetail } from "../components/item-detail";
 import { ItemFooter, ItemHeaderActions } from "../components/item-footer";
@@ -69,6 +76,8 @@ import {
 import { listTags, parseTags } from "../lib/tags.server";
 import type { Collection, Item } from "../lib/models";
 import { MAX_FILE_SIZE } from "../lib/models";
+
+const TOAST_TIMEOUT = 4500;
 
 export function meta() {
   return [
@@ -183,6 +192,7 @@ type Modal = "collection" | "save" | null;
 type ItemDestination = Pick<Item, "id" | "collection_id">;
 
 export default function Home({ loaderData: data }: Route.ComponentProps) {
+  const toastManager = useKumoToastManager();
   const [modal, setModal] = useState<Modal>(null);
   const [moving, setMoving] = useState<Item | null>(null);
   const [tagging, setTagging] = useState<Item | null>(null);
@@ -199,6 +209,9 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
   const visibleSelected = data.items.filter((item) =>
     selectedIds.includes(item.id),
   );
+  const allVisibleSelected =
+    data.items.length > 0 &&
+    data.items.every((item) => selectedIds.includes(item.id));
   const selectionKey = [
     data.view,
     data.collection,
@@ -220,17 +233,23 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
     return [
       {
         label: "Open collection",
+        group: "navigation",
+        icon: <FolderOpenIcon size={16} />,
         onClick: () => {
           void navigate(collectionPath(collection.id));
         },
       },
       {
         label: "Rename collection",
+        group: "manage",
+        icon: <Pencil size={16} />,
         onClick: () => setCollectionAction({ collection, mode: "rename" }),
         disabled: collection.id === "inbox",
       },
       {
         label: "Delete collection",
+        group: "manage",
+        icon: <Trash2 size={16} />,
         onClick: () => setCollectionAction({ collection, mode: "delete" }),
         destructive: true,
         disabled: collection.id === "inbox",
@@ -240,9 +259,16 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
   function itemMenu(item: Item): ContextAction[] {
     const bulk = selectedIds.includes(item.id) && visibleSelected.length > 1;
     return [
-      { label: "Open item", onClick: () => setActiveItemId(item.id) },
+      {
+        label: "Open item",
+        group: "item",
+        icon: <ArrowSquareOutIcon size={16} />,
+        onClick: () => setActiveItemId(item.id),
+      },
       {
         label: selectedIds.includes(item.id) ? "Deselect item" : "Select item",
+        group: "item",
+        icon: <CheckSquareIcon size={16} />,
         onClick: () => {
           toggleItem(item.id);
         },
@@ -251,24 +277,47 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
         ? [
             {
               label: `Move ${visibleSelected.length} selected items`,
+              group: "selection",
+              icon: <ArrowRightIcon size={16} />,
               onClick: () => setBulkAction("move"),
             },
             {
               label: "Add tags to selection",
+              group: "selection",
+              icon: <TagIcon size={16} />,
               onClick: () => setBulkAction("tags"),
             },
             {
               label: `Delete ${visibleSelected.length} selected items`,
+              group: "selection",
+              icon: <Trash2 size={16} />,
               onClick: () => setBulkAction("delete"),
               destructive: true,
             },
           ]
         : [
-            { label: "Rename item", onClick: () => setRenamingItem(item) },
-            { label: "Edit tags", onClick: () => setTagging(item) },
-            { label: "Move item", onClick: () => setMoving(item) },
+            {
+              label: "Rename item",
+              group: "manage",
+              icon: <Pencil size={16} />,
+              onClick: () => setRenamingItem(item),
+            },
+            {
+              label: "Edit tags",
+              group: "manage",
+              icon: <TagIcon size={16} />,
+              onClick: () => setTagging(item),
+            },
+            {
+              label: "Move item",
+              group: "manage",
+              icon: <ArrowRightIcon size={16} />,
+              onClick: () => setMoving(item),
+            },
             {
               label: "Delete item",
+              group: "manage",
+              icon: <Trash2 size={16} />,
               onClick: () => setDeleting(item),
               destructive: true,
             },
@@ -302,19 +351,31 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
   const description =
     !collectionsView && selected?.id !== "inbox" ? selected?.description : "";
   function saved(message: string, item?: ItemDestination) {
-    toast.success(
-      message,
-      item
-        ? {
-            action: {
-              label: "View item",
-              onClick: () => {
-                void navigate(itemPath(item.collection_id, item.id));
-              },
+    if (item) {
+      let toastId = "";
+      toastId = toastManager.add({
+        title: message,
+        variant: "success",
+        timeout: TOAST_TIMEOUT,
+        actions: [
+          {
+            children: "View item",
+            variant: "primary",
+            className: "cerberus-toast-action",
+            onClick: () => {
+              void navigate(itemPath(item.collection_id, item.id));
+              toastManager.close(toastId);
             },
-          }
-        : undefined,
-    );
+          },
+        ],
+      });
+    } else {
+      toastManager.add({
+        title: message,
+        variant: "success",
+        timeout: TOAST_TIMEOUT,
+      });
+    }
     setModal(null);
     setMoving(null);
     if (
@@ -439,7 +500,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                 </Link>
               </ActionContextMenu>
             ))}
-          <button
+          <Button
             className="nav-link new-collection"
             aria-label="New collection"
             title="New collection"
@@ -447,10 +508,10 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           >
             <Plus size={17} />
             <span className="nav-label">New collection</span>
-          </button>
+          </Button>
         </nav>
         <div className="sidebar-bottom">
-          <button
+          <Button
             className="button primary sidebar-save"
             aria-label="Save item"
             title="Save item"
@@ -458,7 +519,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           >
             <span className="nav-label">Save item</span>
             <Plus size={16} />
-          </button>
+          </Button>
           <div className="sidebar-storage">
             <StorageMeter usage={data.storage} placement="sidebar" />
           </div>
@@ -496,7 +557,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
               </h1>
               {description && <p className="page-description">{description}</p>}
               {selected && (
-                <button
+                <Button
                   className="text-link manage-collection"
                   onClick={() =>
                     setCollectionAction({
@@ -506,17 +567,17 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                   }
                 >
                   Manage collection
-                </button>
+                </Button>
               )}
             </div>
             {collectionsView ? (
-              <button
+              <Button
                 className="button secondary"
                 onClick={() => setModal("collection")}
               >
                 <FolderPlus size={16} />
                 New collection
-              </button>
+              </Button>
             ) : (
               <span className="item-total">
                 {plural(selected?.count ?? total)}
@@ -536,85 +597,109 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                   }
                 />
               ))}
-              <button
+              <Button
                 className="collection-card create-card"
                 onClick={() => setModal("collection")}
               >
                 <Plus size={24} />
                 <span>New collection</span>
-              </button>
+              </Button>
             </div>
           ) : (
             <>
-              {!data.collection &&
-                !data.query &&
-                !data.kind &&
-                !data.selectedTags.length && (
-                  <section
-                    className="collections-section"
-                    aria-label="Collections"
-                  >
-                    <div className="section-heading">
-                      <h2>
-                        Collections{" "}
-                        <span>
-                          {data.collections.length.toString().padStart(2, "0")}
-                        </span>
-                      </h2>
-                      <Link to="/collections" className="text-link">
-                        View all
-                        <ArrowRight size={14} />
-                      </Link>
-                    </div>
-                    <div className="collection-strip">
-                      {data.collections.slice(0, 3).map((c, i) => (
-                        <CollectionCard
-                          key={c.id}
-                          collection={c}
-                          tone={i % 4}
-                          actions={collectionMenu(c)}
-                          manage={() =>
-                            setCollectionAction({
-                              collection: c,
-                              mode: "manage",
-                            })
-                          }
-                        />
-                      ))}
-                      <button
-                        className="collection-card create-card"
-                        onClick={() => setModal("collection")}
-                      >
-                        <Plus size={22} />
-                        <span>New collection</span>
-                      </button>
-                    </div>
-                  </section>
-                )}
+              {!data.collection && (
+                <section
+                  className="collections-section"
+                  aria-label="Collections"
+                >
+                  <div className="section-heading">
+                    <h2>
+                      Collections{" "}
+                      <span>
+                        {data.collections.length.toString().padStart(2, "0")}
+                      </span>
+                    </h2>
+                    <Link to="/collections" className="text-link">
+                      View all
+                      <ArrowRightIcon size={14} />
+                    </Link>
+                  </div>
+                  <div className="collection-strip">
+                    {data.collections.slice(0, 3).map((c, i) => (
+                      <CollectionCard
+                        key={c.id}
+                        collection={c}
+                        tone={i % 4}
+                        actions={collectionMenu(c)}
+                        manage={() =>
+                          setCollectionAction({
+                            collection: c,
+                            mode: "manage",
+                          })
+                        }
+                      />
+                    ))}
+                    <Button
+                      className="collection-card create-card"
+                      onClick={() => setModal("collection")}
+                    >
+                      <Plus size={22} />
+                      <span>New collection</span>
+                    </Button>
+                  </div>
+                </section>
+              )}
               <section className="items-section" aria-label="Saved items">
                 <div className="section-heading">
                   <h2>
                     {data.collection ? "In this collection" : "Saved items"}
                     <span>Newest first</span>
                   </h2>
+                  <Button
+                    className="select-all-button"
+                    aria-pressed={allVisibleSelected}
+                    disabled={!data.items.length}
+                    onClick={() =>
+                      setSelectedIds(
+                        allVisibleSelected
+                          ? []
+                          : data.items.map((item) => item.id),
+                      )
+                    }
+                  >
+                    {allVisibleSelected ? "Deselect all" : "Select all"}
+                  </Button>
                 </div>
                 <div className="library-toolbar">
-                  <nav className="filter-tabs" aria-label="Item types">
-                    {[
-                      ["", "Everything"],
-                      ["link", "Links"],
-                      ["image", "Images"],
-                      ["file", "Files"],
-                    ].map(([kind, label]) => (
-                      <Link
-                        key={kind}
-                        to={filterUrl(kind)}
-                        className={`filter-tab ${data.kind === kind ? "active" : ""}`}
-                        aria-current={data.kind === kind ? "page" : undefined}
-                      >
-                        {label}
-                      </Link>
-                    ))}
+                  <nav aria-label="Item types">
+                    <Tabs
+                      value={data.kind || "all"}
+                      variant="segmented"
+                      size="sm"
+                      className="filter-tabs"
+                      listClassName="filter-tabs-list"
+                      tabs={[
+                        ["all", "", "Everything"],
+                        ["link", "link", "Links"],
+                        ["image", "image", "Images"],
+                        ["file", "file", "Files"],
+                      ].map(([value, kind, label]) => ({
+                        value,
+                        label,
+                        nativeButton: false,
+                        render: (props) => (
+                          <Link
+                            {...props}
+                            to={filterUrl(kind)}
+                            aria-current={
+                              data.kind === kind ? "page" : undefined
+                            }
+                          >
+                            {label}
+                          </Link>
+                        ),
+                      }))}
+                    />
                   </nav>
                   <Form
                     method="get"
@@ -624,22 +709,22 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                     role="search"
                   >
                     {data.kind && (
-                      <input type="hidden" name="kind" value={data.kind} />
+                      <Input type="hidden" name="kind" value={data.kind} />
                     )}
                     {data.selectedTags.map((tag) => (
-                      <input key={tag} type="hidden" name="tag" value={tag} />
+                      <Input key={tag} type="hidden" name="tag" value={tag} />
                     ))}
                     <Search size={16} />
-                    <input
+                    <Input
                       aria-label="Search your library"
                       name="q"
                       defaultValue={data.query}
                       placeholder="Search your library…"
                       maxLength={200}
                     />
-                    <button className="sr-only" type="submit">
+                    <Button className="sr-only" type="submit">
                       Search
-                    </button>
+                    </Button>
                     {data.query && (
                       <Link
                         className="icon-button"
@@ -651,6 +736,30 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                     )}
                   </Form>
                 </div>
+                {import.meta.env.DEV && (
+                  <details className="tabs-reference">
+                    <summary>Compare with previous tabs</summary>
+                    <nav
+                      className="tabs-reference-original"
+                      aria-label="Previous tab style reference"
+                    >
+                      {[
+                        ["", "Everything"],
+                        ["link", "Links"],
+                        ["image", "Images"],
+                        ["file", "Files"],
+                      ].map(([kind, label]) => (
+                        <Link
+                          key={kind}
+                          to={filterUrl(kind)}
+                          aria-current={data.kind === kind ? "page" : undefined}
+                        >
+                          {label}
+                        </Link>
+                      ))}
+                    </nav>
+                  </details>
+                )}
                 {(data.tags.length > 0 || data.selectedTags.length > 0) && (
                   <nav className="tag-filters" aria-label="Filter by tags">
                     <Link
@@ -697,10 +806,9 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                         actions={itemMenu(item)}
                       >
                         <label className="item-selection">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={selectedIds.includes(item.id)}
-                            onChange={() => toggleItem(item.id)}
+                            onCheckedChange={() => toggleItem(item.id)}
                             aria-label={`Select ${item.title}`}
                           />
                         </label>
@@ -721,7 +829,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                         <Link2 size={22} />
                       </span>
                       <span>
-                        <Inbox size={32} strokeWidth={1.3} />
+                        <Inbox size={32} weight="regular" />
                       </span>
                       <span>
                         <ImageIcon size={22} />
@@ -772,7 +880,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                           data.page + 1,
                         )}
                       >
-                        Next <ArrowRight size={14} />
+                        Next <ArrowRightIcon size={14} />
                       </Link>
                     ) : (
                       <span />
@@ -810,10 +918,10 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           <Folder size={21} />
           <span>Collections</span>
         </Link>
-        <button onClick={() => setModal("save")}>
+        <Button className="mobile-nav-save" onClick={() => setModal("save")}>
           <Plus size={22} />
           <span>Save</span>
-        </button>
+        </Button>
       </nav>
       <SheetShell
         open={!!collectionAction}
@@ -844,7 +952,11 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                 void navigate(destination ? collectionPath(destination) : "/", {
                   replace: true,
                 });
-                toast.success("Collection deleted. Items preserved.");
+                toastManager.add({
+                  title: "Collection deleted. Items preserved.",
+                  variant: "success",
+                  timeout: TOAST_TIMEOUT,
+                });
               } else
                 saved(deleted ? "Collection deleted." : "Collection renamed.");
             }}
@@ -894,13 +1006,17 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
               );
               setBulkAction(null);
               if (failures)
-                toast.error(
-                  `${failures} items could not be updated. They remain selected.`,
-                );
+                toastManager.add({
+                  title: `${failures} items could not be updated. They remain selected.`,
+                  variant: "error",
+                  timeout: TOAST_TIMEOUT,
+                });
               else {
-                toast.success(
-                  `${succeeded.length} items updated.${cleanup ? " Storage cleanup will retry automatically." : ""}`,
-                );
+                toastManager.add({
+                  title: `${succeeded.length} items updated.${cleanup ? " Storage cleanup will retry automatically." : ""}`,
+                  variant: "success",
+                  timeout: TOAST_TIMEOUT,
+                });
               }
               void revalidator.revalidate();
             }}
@@ -1044,12 +1160,12 @@ function CollectionCard({
         <div className="collection-card-top">
           <span className="folder-tile">
             {c.id === "inbox" ? (
-              <Inbox size={22} strokeWidth={1.5} />
+              <Inbox size={22} weight="regular" />
             ) : (
-              <Folder size={22} strokeWidth={1.5} />
+              <Folder size={22} weight="regular" />
             )}
           </span>
-          <ArrowUpRight size={16} />
+          <ArrowUpRightIcon size={16} />
         </div>
         <div>
           <h3>{c.name}</h3>
@@ -1060,13 +1176,13 @@ function CollectionCard({
           </p>
         </div>
       </Link>
-      <button
+      <Button
         className="icon-button collection-menu-button"
         onClick={manage}
         aria-label={`Manage ${c.name}`}
       >
         <MoreHorizontal size={18} />
-      </button>
+      </Button>
     </ActionContextMenu>
   );
 }
@@ -1089,7 +1205,7 @@ function ItemCard({
         if (!(event.target as HTMLElement).closest("a, button")) openItem();
       }}
     >
-      <button
+      <Button
         className="item-preview"
         onClick={openItem}
         aria-label={`Open ${item.title}`}
@@ -1117,13 +1233,13 @@ function ItemCard({
         <span className="preview-open">
           <Maximize2 size={17} />
         </span>
-      </button>
+      </Button>
       <div className="item-info">
         <div className="item-title-row">
           {iconFor(item.kind, 14)}
-          <button className="item-title" onClick={openItem}>
+          <Button className="item-title" onClick={openItem}>
             {item.title}
-          </button>
+          </Button>
         </div>
         <ItemFooter item={item} collection={collection} />
       </div>
@@ -1225,7 +1341,7 @@ function CreateCollection({ onSave }: { onSave: (id: string) => void }) {
     <form className="dialog-form" onSubmit={submit}>
       <label>
         Collection name
-        <input
+        <Input
           name="name"
           required
           maxLength={80}
@@ -1235,7 +1351,7 @@ function CreateCollection({ onSave }: { onSave: (id: string) => void }) {
       </label>
       <label>
         Description <span className="optional">optional</span>
-        <textarea
+        <Textarea
           name="description"
           maxLength={240}
           rows={2}
@@ -1247,10 +1363,10 @@ function CreateCollection({ onSave }: { onSave: (id: string) => void }) {
           {error}
         </p>
       )}
-      <button disabled={busy} className="button primary form-submit">
+      <Button disabled={busy} className="button primary form-submit">
         {busy ? "Creating…" : "Create collection"}
-        <ArrowRight size={16} />
-      </button>
+        <ArrowRightIcon size={16} />
+      </Button>
     </form>
   );
 }
@@ -1265,6 +1381,7 @@ function CollectionSelect({
   label?: string;
 }) {
   const id = useId();
+  const container = useSheetPortal();
   const options = collections.map((c) => ({
     value: c.id,
     label: c.name + (c.id === "inbox" ? " (default)" : ""),
@@ -1272,43 +1389,23 @@ function CollectionSelect({
   return (
     <div className="collection-select-field">
       <label id={id}>{label}</label>
-      <Select.Root
+      <Select
+        container={container}
         name="collection_id"
         defaultValue={selected || null}
         items={options}
         required
+        aria-labelledby={id}
+        placeholder="Choose a collection"
+        className="collection-kumo-select"
+        alignItemWithTrigger={false}
       >
-        <Select.Trigger className="select-trigger" aria-labelledby={id}>
-          <Select.Value placeholder="Choose a collection" />
-          <Select.Icon>
-            <ChevronDown size={16} />
-          </Select.Icon>
-        </Select.Trigger>
-        <Select.Portal>
-          <Select.Positioner
-            className="select-positioner"
-            sideOffset={6}
-            alignItemWithTrigger={false}
-          >
-            <Select.Popup className="select-popup">
-              <Select.List>
-                {options.map((option) => (
-                  <Select.Item
-                    key={option.value}
-                    value={option.value}
-                    className="select-item"
-                  >
-                    <Select.ItemText>{option.label}</Select.ItemText>
-                    <Select.ItemIndicator>
-                      <Check size={15} />
-                    </Select.ItemIndicator>
-                  </Select.Item>
-                ))}
-              </Select.List>
-            </Select.Popup>
-          </Select.Positioner>
-        </Select.Portal>
-      </Select.Root>
+        {options.map((option) => (
+          <Select.Option key={option.value} value={option.value}>
+            {option.label}
+          </Select.Option>
+        ))}
+      </Select>
     </div>
   );
 }
@@ -1350,38 +1447,46 @@ function SaveItem({
   }
   return (
     <>
-      <div className="save-tabs" role="group" aria-label="Save type">
-        <button
-          className={mode === "link" ? "active" : ""}
-          aria-pressed={mode === "link"}
-          disabled={busy}
-          onClick={() => {
-            setMode("link");
+      <div className="save-tabs-group" role="group" aria-label="Save type">
+        <Tabs
+          value={mode}
+          variant="segmented"
+          size="sm"
+          className="save-tabs"
+          listClassName="save-tabs-list"
+          onValueChange={(value) => {
+            if (busy) return;
+            setMode(value as "link" | "file");
+            if (value === "file") setFilename("");
             setError("");
           }}
-        >
-          <Link2 size={16} />
-          Link
-        </button>
-        <button
-          className={mode === "file" ? "active" : ""}
-          aria-pressed={mode === "file"}
-          disabled={busy}
-          onClick={() => {
-            setMode("file");
-            setFilename("");
-            setError("");
-          }}
-        >
-          <Upload size={16} />
-          Image or file
-        </button>
+          tabs={[
+            {
+              value: "link",
+              label: (
+                <>
+                  <Link2 size={16} />
+                  Link
+                </>
+              ),
+            },
+            {
+              value: "file",
+              label: (
+                <>
+                  <Upload size={16} />
+                  Image or file
+                </>
+              ),
+            },
+          ]}
+        />
       </div>
       <form className="dialog-form" onSubmit={submit}>
         {mode === "link" ? (
           <label>
             URL
-            <input
+            <Input
               name="url"
               type="url"
               required
@@ -1396,7 +1501,7 @@ function SaveItem({
             <Upload size={24} />
             <strong>{filename || "Choose an image or file"}</strong>
             <span>Any file, up to 10 MB</span>
-            <input
+            <Input
               name="file"
               type="file"
               required
@@ -1406,11 +1511,11 @@ function SaveItem({
         )}
         <label>
           Title <span className="optional">optional</span>
-          <input name="title" maxLength={200} placeholder="Title" />
+          <Input name="title" maxLength={200} placeholder="Title" />
         </label>
         <label>
           Tags <span className="optional">optional</span>
-          <input name="tags" maxLength={1024} placeholder="design, reading" />
+          <Input name="tags" maxLength={1024} placeholder="design, reading" />
           <span className="field-hint">
             Separate tags with commas. Up to 10 tags.
           </span>
@@ -1421,10 +1526,10 @@ function SaveItem({
             {error}
           </p>
         )}
-        <button disabled={busy} className="button primary form-submit">
+        <Button disabled={busy} className="button primary form-submit">
           {busy ? "Saving…" : "Save to Cerberus"}
           <Plus size={16} />
-        </button>
+        </Button>
       </form>
     </>
   );
@@ -1466,10 +1571,10 @@ function MoveItem({
           {error}
         </p>
       )}
-      <button className="button primary form-submit" disabled={busy}>
+      <Button className="button primary form-submit" disabled={busy}>
         {busy ? "Moving…" : "Move item"}
-        <MoveRight size={16} />
-      </button>
+        <ArrowRightIcon size={16} />
+      </Button>
     </form>
   );
 }
@@ -1495,7 +1600,7 @@ function EditTags({ item, onSave }: { item: Item; onSave: () => void }) {
     <form className="dialog-form" onSubmit={submit}>
       <label>
         Tags
-        <input
+        <Input
           name="tags"
           maxLength={1024}
           defaultValue={(item.tags || []).join(", ")}
@@ -1510,9 +1615,9 @@ function EditTags({ item, onSave }: { item: Item; onSave: () => void }) {
           {error}
         </p>
       )}
-      <button className="button primary form-submit" disabled={busy}>
+      <Button className="button primary form-submit" disabled={busy}>
         {busy ? "Saving…" : "Save tags"}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -1549,12 +1654,12 @@ function DeleteItem({
         </p>
       )}
       <div className="delete-actions">
-        <button className="button secondary" disabled={busy} onClick={cancel}>
+        <Button className="button secondary" disabled={busy} onClick={cancel}>
           Cancel
-        </button>
-        <button className="button primary" disabled={busy} onClick={remove}>
+        </Button>
+        <Button className="button primary" disabled={busy} onClick={remove}>
           {busy ? "Deleting…" : "Delete item"}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -1588,20 +1693,20 @@ function CollectionManagement({
           </p>
         ) : (
           <>
-            <button
+            <Button
               className="button secondary"
               onClick={() => changeMode("rename")}
             >
               <Pencil size={16} />
               Rename collection
-            </button>
-            <button
+            </Button>
+            <Button
               className="button secondary"
               onClick={() => changeMode("delete")}
             >
               <Trash2 size={16} />
               Delete collection
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -1635,7 +1740,7 @@ function CollectionManagement({
       {mode === "rename" ? (
         <label>
           Collection name
-          <input
+          <Input
             name="name"
             required
             maxLength={80}
@@ -1663,7 +1768,7 @@ function CollectionManagement({
           {error}
         </p>
       )}
-      <button className="button primary form-submit" disabled={busy}>
+      <Button className="button primary form-submit" disabled={busy}>
         {busy
           ? "Saving…"
           : mode === "delete"
@@ -1671,7 +1776,7 @@ function CollectionManagement({
               ? "Move items and delete collection"
               : "Delete collection"
             : "Save name"}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -1699,7 +1804,7 @@ function RenameItem({ item, onSave }: { item: Item; onSave: () => void }) {
     <form className="dialog-form" onSubmit={submit}>
       <label>
         Item name
-        <input
+        <Input
           name="title"
           maxLength={200}
           required
@@ -1711,9 +1816,9 @@ function RenameItem({ item, onSave }: { item: Item; onSave: () => void }) {
           {error}
         </p>
       )}
-      <button className="button primary form-submit" disabled={busy}>
+      <Button className="button primary form-submit" disabled={busy}>
         {busy ? "Saving…" : "Save name"}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -1763,7 +1868,7 @@ function BulkItemForm({
       {action === "tags" && (
         <label>
           Tags to add
-          <input
+          <Input
             name="tags"
             required
             maxLength={1024}
@@ -1785,7 +1890,7 @@ function BulkItemForm({
           {error}
         </p>
       )}
-      <button
+      <Button
         className="button primary form-submit"
         disabled={busy || !items.length}
       >
@@ -1796,7 +1901,7 @@ function BulkItemForm({
             : action === "move"
               ? `Move ${items.length} items`
               : "Add tags"}
-      </button>
+      </Button>
     </form>
   );
 }

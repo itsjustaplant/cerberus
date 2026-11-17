@@ -8,18 +8,10 @@ import {
   ScrollRestoration,
 } from "react-router";
 import type { Route } from "./+types/root";
-import { Toaster } from "sonner";
-import {
-  ThemeProvider,
-  themeInit,
-  useTheme,
-} from "./components/theme-provider";
+import { Toasty } from "@cloudflare/kumo/components/toast";
+import { ThemeProvider, themeInit } from "./components/theme-provider";
 import { PageTransitions } from "./components/page-transitions";
-import "sonner/dist/styles.css";
-import "./app.css";
-import "./agents-theme.css";
-import "./strawhat-theme.css";
-import "./light-theme.css";
+import "./kumo-theme.css";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -67,51 +59,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <ThemeProvider>
-          <div className="root">{children}</div>
-          <ThemeToaster />
+          <Toasty>
+            <div className="root">{children}</div>
+          </Toasty>
         </ThemeProvider>
         <ScrollRestoration />
         <Scripts />
       </body>
     </html>
-  );
-}
-
-function ThemeToaster() {
-  const { resolved } = useTheme();
-  return (
-    <Toaster
-      theme={resolved}
-      position="bottom-right"
-      closeButton
-      mobileOffset={{
-        bottom: "calc(88px + env(safe-area-inset-bottom))",
-        left: 16,
-        right: 16,
-      }}
-      toastOptions={{
-        classNames: { toast: "cerberus-toast" },
-        actionButtonStyle: {
-          fontFamily: "inherit",
-          fontSize: 13,
-          fontWeight: 400,
-          borderRadius: 0,
-          minHeight: 38,
-          height: "auto",
-          padding: "8px 14px",
-          border: "1px solid #d00000",
-          background: "#d00000",
-          color: "#ffffff",
-        },
-        style: {
-          fontFamily: "inherit",
-          background: "var(--surface)",
-          color: "var(--toast-text)",
-          border: "1px solid var(--border)",
-          borderRadius: 0,
-        },
-      }}
-    />
   );
 }
 

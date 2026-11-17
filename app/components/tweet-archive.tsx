@@ -1,6 +1,11 @@
+import { Button } from "./ui/button";
 import { ImageGallery } from "./image-gallery";
 import { useState } from "react";
-import { ArrowUpRight, Link2, RefreshCw } from "lucide-react";
+import {
+  ArrowSquareOutIcon as ArrowUpRight,
+  LinkIcon as Link2,
+  ArrowClockwiseIcon as RefreshCw,
+} from "@phosphor-icons/react";
 import { ItemFooter } from "./item-footer";
 import type { Collection, Item, TweetArchive } from "../lib/models";
 
@@ -50,7 +55,7 @@ export function TweetCard({
         if (!(event.target as HTMLElement).closest("a, button")) open();
       }}
     >
-      <button
+      <Button
         className="item-preview tweet-preview"
         onClick={open}
         aria-label={`Open saved post${archive.username ? ` by @${archive.username}` : ""}`}
@@ -80,14 +85,14 @@ export function TweetCard({
         <span className={`archive-status status-${archive.status}`}>
           {archiveLabel(archive)}
         </span>
-      </button>
+      </Button>
       <div className="item-info">
         <div className="item-title-row">
-          <button className="item-title" onClick={open}>
+          <Button className="item-title" onClick={open}>
             {item.title === "x.com" || item.title === "twitter.com"
               ? "View saved post"
               : item.title}
-          </button>
+          </Button>
         </div>
         <ItemFooter item={item} collection={collection} />
       </div>
@@ -144,13 +149,13 @@ export function TweetArchiveView({
             {expanded || !canExpand ? text : preview + "…"}
           </p>
           {canExpand && (
-            <button
+            <Button
               className="text-link see-more"
               aria-expanded={expanded}
               onClick={() => setExpanded(!expanded)}
             >
               {expanded ? "See less" : "See more"}
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -186,10 +191,10 @@ export function TweetArchiveView({
           <ArrowUpRight size={14} />
         </a>
         {archive.status !== "complete" && (
-          <button className="button secondary" disabled={busy} onClick={retry}>
+          <Button className="button secondary" disabled={busy} onClick={retry}>
             <RefreshCw size={14} />
             {busy ? "Retrying…" : "Retry archive"}
-          </button>
+          </Button>
         )}
       </div>
     </div>

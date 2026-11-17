@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
-import { Popover } from "@base-ui/react/popover";
-import { ChevronDown, X } from "lucide-react";
+import { Popover } from "@cloudflare/kumo/components/popover";
+import { Button } from "./ui/button";
+import {
+  CaretDownIcon as ChevronDown,
+  XIcon as X,
+} from "@phosphor-icons/react";
 import type { StorageUsage } from "../lib/models";
 
 function formatBytes(bytes: number) {
@@ -134,7 +138,7 @@ export function StorageMeter({
             </div>
             <div className="storage-breakdown">
               {segments.map((segment) => (
-                <button
+                <Button
                   key={segment.key}
                   className="storage-category"
                   onPointerEnter={() => setHighlight(segment.key)}
@@ -151,7 +155,7 @@ export function StorageMeter({
                   <span>
                     {current.ready ? formatBytes(segment.bytes) : "—"}
                   </span>
-                </button>
+                </Button>
               ))}
             </div>
             <Popover.Description className="storage-explanation">

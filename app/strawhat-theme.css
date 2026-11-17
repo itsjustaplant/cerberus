@@ -178,11 +178,6 @@ h1 {
   background: #252525;
   border: 0;
 }
-.filter-tabs {
-  background: transparent;
-  border: 1px solid #b1a7a640;
-}
-.filter-tab.active,
 .tag-filter.active {
   background: #252525;
   color: #f5f3f4;

@@ -1,6 +1,13 @@
+import { Button } from "./ui/button";
 import { useState } from "react";
-import { Dialog } from "@base-ui/react/dialog";
-import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Dialog } from "@cloudflare/kumo/primitives/dialog";
+import {
+  CaretLeftIcon as ChevronLeft,
+  CaretRightIcon as ChevronRight,
+  XIcon as X,
+  MagnifyingGlassPlusIcon as ZoomIn,
+  MagnifyingGlassMinusIcon as ZoomOut,
+} from "@phosphor-icons/react";
 
 export type GalleryImage = { src: string; alt: string };
 
@@ -31,7 +38,7 @@ export function ImageGallery({
     >
       <div className={className}>
         {images.map((photo, position) => (
-          <button
+          <Button
             className="image-zoom-trigger"
             key={photo.src}
             aria-label={`Enlarge ${photo.alt}`}
@@ -42,7 +49,7 @@ export function ImageGallery({
             }}
           >
             <img src={photo.src} alt={photo.alt} loading="lazy" />
-          </button>
+          </Button>
         ))}
       </div>
       <Dialog.Portal>
@@ -62,13 +69,13 @@ export function ImageGallery({
             <span role="status" aria-live="polite">
               {index + 1} / {images.length}
             </span>
-            <button
+            <Button
               className="icon-button"
               aria-label={zoomed ? "Fit image" : "Zoom in"}
               onClick={() => setZoomed(!zoomed)}
             >
               {zoomed ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
-            </button>
+            </Button>
             <Dialog.Close
               className="icon-button"
               aria-label="Close image viewer"
@@ -88,22 +95,30 @@ export function ImageGallery({
           </div>
           {images.length > 1 && (
             <div className="gallery-navigation">
-              <button
+              <Button
                 className="button secondary"
                 aria-label="Previous image"
                 onClick={() => step(-1)}
               >
                 <ChevronLeft size={20} />
-                Previous
-              </button>
-              <button
+                <span>Previous</span>
+                <span
+                  className="gallery-navigation-spacer"
+                  aria-hidden="true"
+                />
+              </Button>
+              <Button
                 className="button secondary"
                 aria-label="Next image"
                 onClick={() => step(1)}
               >
-                Next
+                <span
+                  className="gallery-navigation-spacer"
+                  aria-hidden="true"
+                />
+                <span>Next</span>
                 <ChevronRight size={20} />
-              </button>
+              </Button>
             </div>
           )}
         </Dialog.Popup>

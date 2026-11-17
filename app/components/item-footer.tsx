@@ -1,4 +1,9 @@
-import { MoveRight, Tag, Trash2 } from "lucide-react";
+import { Button } from "./ui/button";
+import {
+  ArrowRightIcon as MoveRight,
+  TagIcon as Tag,
+  TrashIcon as Trash2,
+} from "@phosphor-icons/react";
 import type { Collection, Item } from "../lib/models";
 
 export interface ItemActions {
@@ -44,30 +49,30 @@ export function ItemHeaderActions({
 }: { item: Item } & ItemActions) {
   return (
     <div className="item-actions">
-      <button
+      <Button
         className="icon-button"
         onClick={editTags}
         aria-label={`Edit tags for ${item.title}`}
         title="Edit tags"
       >
         <Tag size={16} />
-      </button>
-      <button
+      </Button>
+      <Button
         className="icon-button"
         onClick={move}
         aria-label={`Move ${item.title}`}
         title="Move to collection"
       >
         <MoveRight size={16} />
-      </button>
-      <button
+      </Button>
+      <Button
         className="icon-button delete-button"
         onClick={remove}
         aria-label={`Delete ${item.title}`}
         title="Delete item"
       >
         <Trash2 size={16} />
-      </button>
+      </Button>
     </div>
   );
 }

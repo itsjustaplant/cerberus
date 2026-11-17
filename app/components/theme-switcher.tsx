@@ -1,5 +1,4 @@
-import { Select } from "@base-ui/react/select";
-import { Check, ChevronDown, Monitor, Moon, Sun } from "lucide-react";
+import { Select } from "@cloudflare/kumo/components/select";
 import { useTheme, type ThemePreference } from "./theme-provider";
 const options = [
   { value: "system", label: "System" },
@@ -12,49 +11,23 @@ export function ThemeSwitcher({
   placement?: "header" | "sidebar";
 }) {
   const { preference, setPreference } = useTheme();
-  const Icon =
-    preference === "system" ? Monitor : preference === "light" ? Sun : Moon;
   return (
-    <Select.Root
+    <Select
       value={preference}
       onValueChange={(value) => {
         if (value) setPreference(value as ThemePreference);
       }}
       items={options}
+      aria-label="Theme"
+      className="kumo-theme-switcher"
+      side={placement === "sidebar" ? "top" : "bottom"}
+      alignItemWithTrigger={false}
     >
-      <Select.Trigger className="theme-trigger" aria-label="Theme">
-        <Icon size={16} />
-        <Select.Value className="theme-value" />
-        <Select.Icon>
-          <ChevronDown size={12} />
-        </Select.Icon>
-      </Select.Trigger>
-      <Select.Portal>
-        <Select.Positioner
-          sideOffset={6}
-          side={placement === "sidebar" ? "top" : "bottom"}
-          align={placement === "sidebar" ? "start" : "end"}
-          alignItemWithTrigger={false}
-          className="select-positioner"
-        >
-          <Select.Popup className="select-popup theme-options">
-            <Select.List>
-              {options.map((option) => (
-                <Select.Item
-                  key={option.value}
-                  value={option.value}
-                  className="select-item"
-                >
-                  <Select.ItemText>{option.label}</Select.ItemText>
-                  <Select.ItemIndicator>
-                    <Check size={15} />
-                  </Select.ItemIndicator>
-                </Select.Item>
-              ))}
-            </Select.List>
-          </Select.Popup>
-        </Select.Positioner>
-      </Select.Portal>
-    </Select.Root>
+      {options.map((option) => (
+        <Select.Option key={option.value} value={option.value}>
+          {option.label}
+        </Select.Option>
+      ))}
+    </Select>
   );
 }

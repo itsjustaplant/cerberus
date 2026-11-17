@@ -1,4 +1,8 @@
-import { ArrowDownToLine, ArrowUpRight, File as FileIcon } from "lucide-react";
+import {
+  DownloadSimpleIcon as ArrowDownToLine,
+  ArrowSquareOutIcon as ArrowUpRight,
+  FileIcon,
+} from "@phosphor-icons/react";
 import { ImageGallery } from "./image-gallery";
 import type { Item } from "../lib/models";
 

@@ -11,7 +11,7 @@ const key = "cerberus-theme";
 function valid(value: string | null): ThemePreference {
   return value === "light" || value === "dark" ? value : "system";
 }
-export const themeInit = `(()=>{try{const p=localStorage.getItem('${key}');const t=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t}catch{document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}})()`;
+export const themeInit = `(()=>{try{const p=localStorage.getItem('${key}');const t=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t;document.documentElement.dataset.mode=t}catch{document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.mode=document.documentElement.dataset.theme}})()`;
 const ThemeContext = createContext({
   preference: "system" as ThemePreference,
   resolved: "system" as ThemePreference,
@@ -35,10 +35,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setValue(value);
       setResolved(theme);
       document.documentElement.dataset.theme = theme;
+      document.documentElement.dataset.mode = theme;
       document
         .querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')
         .forEach((meta) => {
-          meta.content = theme === "dark" ? "#0b090a" : "#ffffff";
+          meta.content = getComputedStyle(
+            document.documentElement,
+          ).backgroundColor;
         });
     }
     const update = () => apply(current);

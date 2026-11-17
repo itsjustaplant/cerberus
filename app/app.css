@@ -458,23 +458,6 @@ h1 {
   padding-bottom: 16px;
   margin-bottom: 24px;
 }
-.filter-tabs {
-  display: flex;
-  gap: 4px;
-}
-.filter-tab {
-  font-size: 12px;
-  padding: 7px 11px;
-  color: #a3a3a3;
-  border: 1px solid transparent;
-  border-radius: 2px;
-  white-space: nowrap;
-}
-.filter-tab.active {
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-color: #75421d;
-}
 .search-form {
   display: flex;
   align-items: center;
@@ -797,29 +780,6 @@ h1 {
   border-radius: 2px;
   font-size: 12px;
 }
-.save-tabs {
-  display: flex;
-  border: 1px solid #2f2f2f;
-  border-radius: 2px;
-  padding: 4px;
-  gap: 4px;
-  margin-bottom: 22px;
-}
-.save-tabs button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 1;
-  font-size: 12px;
-  color: #a3a3a3;
-  min-height: 34px;
-  border-radius: 2px;
-}
-.save-tabs button.active {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
 .upload-field {
   border: 1px dashed #474747;
   border-radius: 2px;
@@ -884,9 +844,6 @@ h1 {
   }
   .secondary:hover {
     background: #252525;
-  }
-  .filter-tab:hover {
-    color: #d7d7d7;
   }
   .item-title:hover {
     text-decoration: underline;
@@ -1058,14 +1015,6 @@ h1 {
   .search-form input::placeholder {
     font-size: 13px;
   }
-  .filter-tabs {
-    gap: 3px;
-    justify-content: space-between;
-  }
-  .filter-tab {
-    padding: 7px 12px;
-    font-size: 11px;
-  }
   .empty-state {
     min-height: 330px;
     padding: 30px 16px;
@@ -1199,9 +1148,6 @@ h1 {
   .collection-card {
     padding: 12px;
   }
-  .filter-tab {
-    padding: 7px 9px;
-  }
   .items-grid {
     grid-template-columns: 1fr;
   }
@@ -1243,11 +1189,6 @@ h1 {
 .mobile-brand:active,
 .item-title:active {
   opacity: 0.7;
-}
-.filter-tab:active,
-.save-tabs button:active {
-  background: var(--accent-soft);
-  color: var(--accent);
 }
 .error-page {
   max-width: 560px;
