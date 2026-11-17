@@ -5,6 +5,7 @@ import {
 } from "./storage.server";
 import { IMAGE_TYPES, MAX_FILE_SIZE, MAX_TWEET_PHOTOS } from "./models";
 import type { Item, TweetArchive, TweetPhoto } from "./models";
+import { R2BudgetError } from "./r2-budget.server";
 
 const HOSTS = new Set([
   "x.com",
@@ -243,6 +244,7 @@ export async function archiveTweet(
     let bytes = stored.reduce((n, photo) => n + photo.size, 0);
     let errors = sources.length > MAX_TWEET_PHOTOS ? 1 : 0;
     let quotaExceeded = false;
+    let operationBudgetExceeded = false;
     for (const [position, source] of sources
       .slice(0, MAX_TWEET_PHOTOS)
       .entries()) {
@@ -300,6 +302,10 @@ export async function archiveTweet(
           quotaExceeded = true;
           break;
         }
+        if (error instanceof R2BudgetError) {
+          operationBudgetExceeded = true;
+          break;
+        }
       }
     }
     const status = errors ? "partial" : "complete";
@@ -308,11 +314,13 @@ export async function archiveTweet(
     )
       .bind(
         status,
-        quotaExceeded
-          ? "Post text saved. Images could not be archived because the 10 GB storage limit is reached. Delete files and retry."
-          : errors
-            ? "Post text saved. Some images could not be archived. Retry to save missing images."
-            : null,
+        operationBudgetExceeded
+          ? "Post text saved. Images could not be archived because the storage operation budget is exhausted or unavailable. Retry after it recovers."
+          : quotaExceeded
+            ? "Post text saved. Images could not be archived because the 10 GB storage limit is reached. Delete files and retry."
+            : errors
+              ? "Post text saved. Some images could not be archived. Retry to save missing images."
+              : null,
         itemId,
       )
       .run();

@@ -194,22 +194,62 @@ using a public post with an image in the isolated integration library.
 Their disposable storage path is printed; they never modify the development library.
 Generated Worker/route types, local storage, and build output are ignored by Git.
 
-## Deployment (not configured yet)
+## Production deployment
 
-No resources have been provisioned and nothing has been deployed. The D1 ID in
-`wrangler.jsonc` is a placeholder. Provision one D1 database and one private R2
-bucket, update the database ID, and apply migrations remotely before deployment.
-The R2 binding is now `FILES` rather than the scaffold’s `IMAGES` binding.
+The `production` environment in `wrangler.jsonc` targets the `cerberus` Worker
+at `https://cerberus.justaplant.dev`, the `cerberus` D1 database (`DB`), and the
+private `cerberus-files` R2 bucket (`FILES`). The root configuration retains the
+existing local database and bucket so development does not use production data.
 
-The app has no owner authentication yet. Before using a public domain, protect
-all UI and API paths with an owner-only access layer (for example Cloudflare
-Access), with only the exact `/api/capture` path exempted. File delivery must
-also stay protected. Same-origin mutation checks do not replace authentication.
-`workers_dev` and `preview_urls` remain disabled; those settings do not secure a
-custom domain. Store secrets in Worker secrets or ignored `.dev.vars` files.
+The production database and private Standard-class R2 bucket are provisioned.
+Cloudflare Access application `Cerberus` protects the entire hostname using the
+existing owner-only `my-email` policy and a 24-hour application session. This
+includes UI, APIs, file delivery, and `/api/capture`; phone shortcuts need an
+authenticated Access session or a separately configured service-auth policy.
+Same-origin mutation checks do not replace authentication. Access policy changes
+are managed separately in the Cloudflare Zero Trust dashboard.
 
-The configured Cloudflare rate-limit namespace ID (`1001`) must be unique to this
-limiter in your account; adjust it if another Worker already uses that namespace.
+Keep `cerberus-files` private with public development URLs disabled. Apply
+pending migrations before deploying:
+
+```sh
+npm run db:migrate:production
+npm run deploy:production
+```
+
+The deploy script builds with `CLOUDFLARE_ENV=production` and deploys the generated
+Worker configuration, including client assets and custom-domain routing. Both
+`workers_dev` and `preview_urls` are disabled to avoid alternate public endpoints.
+Check that unauthenticated requests to `/`, `/api/storage`, and `/api/files/...`
+redirect to Cloudflare Access before using the app. Verify owner login, saving,
+file upload/download, and deletion after deployment.
+
+Store secrets in Worker secrets or ignored `.dev.vars` files. The production
+capture rate limiter uses namespace `847230159`; local development uses `1001`.
+The shared production mutation limiter allows 120 requests per minute per
+Cloudflare location (namespace `847230160`); this is a burst safeguard, not a
+strict account-wide budget.
+
+### Usage guards
+
+- A database-enforced 10,000,000,000-byte cap includes uploaded files, archived
+  images, in-flight reservations, and uncertain writes. Capacity is freed only
+  after confirmed deletion. Uploads are at most 10 MiB each; post archives are
+  at most 40 MiB with at most 16 images. Request streams are bounded before parsing.
+- Every Worker R2 `put`/`list` reserves a Class A operation, and every `get`/`head`
+  reserves a Class B operation before contacting R2. Atomic D1 counters cap the
+  app at 900,000 Class A and 9,000,000 Class B attempts per UTC calendar month,
+  10% below the Standard free allowances. Failed attempts remain counted.
+  Missing accounting blocks reads and uploads instead of bypassing the guard.
+- Deletes are free for Standard R2 and remain available after the operation
+  budget is exhausted. Blocked uploads refund their unused byte reservation.
+  Archiving keeps the saved text and reports a partial archive when blocked.
+
+These limits cover this app's operations, not other buckets, other Workers,
+manual uploads, or account-wide billing. The operation counters themselves use
+D1 reads/writes; Cloudflare's Workers Free/D1 platform limits still apply. Do not
+treat these application guards as a universal spending cap. Monitor account
+usage and billing in Cloudflare; changing to paid plans needs a separate review.
 
 ## Development and versioning
 

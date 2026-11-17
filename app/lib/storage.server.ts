@@ -1,5 +1,6 @@
 import { InputError } from "./validation.server";
 import { STORAGE_LIMIT_BYTES, type StorageUsage } from "./models";
+import { R2BudgetError } from "./r2-budget.server";
 
 type Quota = {
   limit_bytes: number;
@@ -169,7 +170,12 @@ export async function writeStoredObject(
       .bind(key)
       .run();
   } catch (error) {
-    if (confirmed) {
+    if (error instanceof R2BudgetError) {
+      // The budget gate rejected the operation before R2 was called.
+      await env.DB.prepare("DELETE FROM storage_objects WHERE object_key = ?")
+        .bind(key)
+        .run();
+    } else if (confirmed) {
       // This writer knows its PUT finished, so a confirmed delete can safely free the row.
       try {
         await env.FILES.delete(key);

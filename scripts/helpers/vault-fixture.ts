@@ -8,6 +8,7 @@ export function fixture(withPost = true) {
   sql.exec(readFileSync("migrations/0003_tags_and_deletion.sql", "utf8"));
   sql.exec(readFileSync("migrations/0004_twitter_tag.sql", "utf8"));
   sql.exec(readFileSync("migrations/0005_storage_quota.sql", "utf8"));
+  sql.exec(readFileSync("migrations/0006_r2_operation_budget.sql", "utf8"));
   const files = new Map<string, Uint8Array>();
   function statement(query: string, values: unknown[] = []): unknown {
     return {

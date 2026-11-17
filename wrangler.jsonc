@@ -22,6 +22,11 @@
       "namespace_id": "1001",
       "simple": { "limit": 30, "period": 60 },
     },
+    {
+      "name": "MUTATION_LIMITER",
+      "namespace_id": "1002",
+      "simple": { "limit": 1000, "period": 60 },
+    },
   ],
   "r2_buckets": [
     {
@@ -29,4 +34,37 @@
       "bucket_name": "vault-files",
     },
   ],
+  // Local development keeps its existing database and bucket above.
+  "env": {
+    "production": {
+      "name": "cerberus",
+      "account_id": "4000fc3814448662c33b8fbcca8f8971",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [
+        { "pattern": "cerberus.justaplant.dev", "custom_domain": true },
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "cerberus",
+          "database_id": "c8420812-bcd7-460e-86e2-9ef9617d47c8",
+          "migrations_dir": "migrations",
+        },
+      ],
+      "r2_buckets": [{ "binding": "FILES", "bucket_name": "cerberus-files" }],
+      "ratelimits": [
+        {
+          "name": "CAPTURE_LIMITER",
+          "namespace_id": "847230159",
+          "simple": { "limit": 30, "period": 60 },
+        },
+        {
+          "name": "MUTATION_LIMITER",
+          "namespace_id": "847230160",
+          "simple": { "limit": 120, "period": 60 },
+        },
+      ],
+    },
+  },
 }

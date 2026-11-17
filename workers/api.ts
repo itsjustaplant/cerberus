@@ -45,6 +45,17 @@ export async function api(
         request.headers.get("Sec-Fetch-Site") === "cross-site")
     )
       return json({ error: "Cross-origin requests are not allowed." }, 403);
+    if (!["GET", "HEAD"].includes(request.method)) {
+      const { success } = await env.MUTATION_LIMITER.limit({
+        key: "cerberus-mutations",
+      });
+      if (!success)
+        return json(
+          { error: "Too many changes. Try again in a minute." },
+          429,
+          { "Retry-After": "60" },
+        );
+    }
     if (path === "/api/storage") {
       if (request.method !== "GET")
         return json({ error: "Method not allowed." }, 405, { Allow: "GET" });

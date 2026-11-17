@@ -626,6 +626,38 @@ try {
   console.log(
     "PASS: strict 10 GB quota under concurrent HTTP uploads, exact boundary, and deletion recovery.",
   );
+  // Exhaust the operation budgets in the disposable database, never production.
+  await api(`/api/items/${image.id}`, {}, 200, "DELETE");
+  const beforeBudgetBlock = (await (await fetch(base + "/api/storage")).json())
+    .storage.usedBytes;
+  const budgetSeed = await fetch(
+    base +
+      "/cdn-cgi/local/explorer/api/d1/database/00000000-0000-0000-0000-000000000000/raw",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sql: "INSERT INTO r2_operation_usage (month, class, operations) VALUES (?, 'A', 900000), (?, 'B', 9000000) ON CONFLICT(month, class) DO UPDATE SET operations = excluded.operations",
+        params: [
+          new Date().toISOString().slice(0, 7),
+          new Date().toISOString().slice(0, 7),
+        ],
+      }),
+    },
+  );
+  assert.ok(budgetSeed.ok, await budgetSeed.text());
+  const budgetUpload = new FormData();
+  budgetUpload.set("file", new File([new Uint8Array(1)], "budget-blocked.bin"));
+  await api("/api/items", budgetUpload, 503);
+  assert.equal(
+    (await (await fetch(base + "/api/storage")).json()).storage.usedBytes,
+    beforeBudgetBlock,
+  );
+  assert.equal((await fetch(base + `/api/files/${svg.id}`)).status, 503);
+  await api(`/api/items/${svg.id}`, {}, 200, "DELETE");
+  console.log(
+    "PASS: monthly operation budgets block HTTP uploads/downloads without leaked reservations and permit deletion.",
+  );
   console.log(
     "PASS: tags, deletion, collections, capture defaults, move, search, pagination, file and image persistence, download headers, validation, request limits, CSRF, rate limiting, and 404/405 handling.",
   );

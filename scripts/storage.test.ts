@@ -13,6 +13,83 @@ import { STORAGE_LIMIT_BYTES } from "../app/lib/models";
 import { createFile } from "../app/lib/vault.server";
 import { archiveTweet, getTweetArchive } from "../app/lib/tweets.server";
 import { deleteItem, cleanupDeletedObjects } from "../app/lib/deletion.server";
+import {
+  R2BudgetError,
+  R2_OPERATION_LIMITS,
+  reserveR2Operation,
+  withR2Budget,
+} from "../app/lib/r2-budget.server";
+
+test("monthly operation budgets admit only the last available concurrent operation and reset in UTC", async () => {
+  const { env, sql } = fixture(false);
+  const now = new Date("2026-11-30T23:59:59Z");
+  for (const operationClass of ["A", "B"] as const) {
+    sql
+      .prepare("INSERT INTO r2_operation_usage VALUES (?, ?, ?)")
+      .run("2026-11", operationClass, R2_OPERATION_LIMITS[operationClass] - 1);
+    const results = await Promise.allSettled(
+      Array.from({ length: 5 }, () =>
+        reserveR2Operation(env, operationClass, now),
+      ),
+    );
+    assert.equal(
+      results.filter((result) => result.status === "fulfilled").length,
+      1,
+    );
+    assert.equal(
+      sql
+        .prepare(
+          "SELECT operations FROM r2_operation_usage WHERE month = ? AND class = ?",
+        )
+        .get("2026-11", operationClass)!.operations,
+      R2_OPERATION_LIMITS[operationClass],
+    );
+    await reserveR2Operation(
+      env,
+      operationClass,
+      new Date("2026-12-01T00:00:00Z"),
+    );
+  }
+  sql.close();
+});
+
+test("exhausted budgets block R2 writes before upload without leaking storage reservations; deletion stays available", async () => {
+  const f = fixture(false);
+  await initializeStorage(f.env);
+  const month = new Date().toISOString().slice(0, 7);
+  f.sql
+    .prepare("INSERT INTO r2_operation_usage VALUES (?, 'A', ?)")
+    .run(month, R2_OPERATION_LIMITS.A);
+  const env = withR2Budget(f.env);
+  await assert.rejects(createFile(env, fileForm(1)), R2BudgetError);
+  assert.equal(f.files.size, 0);
+  assert.equal((await getStorageUsage(env)).usedBytes, 0);
+  f.files.set("old", new Uint8Array(1));
+  await env.FILES.delete("old");
+  assert.equal(f.files.size, 0);
+  f.sql.close();
+});
+
+test("operation accounting fails closed and attempted failures retain their operation charge", async () => {
+  const f = fixture(false);
+  let calls = 0;
+  f.env.FILES.list = async () => {
+    calls++;
+    throw new Error("R2 unavailable");
+  };
+  const env = withR2Budget(f.env);
+  await assert.rejects(env.FILES.list(), /R2 unavailable/);
+  assert.equal(calls, 1);
+  assert.equal(
+    f.sql.prepare("SELECT operations FROM r2_operation_usage").get()!
+      .operations,
+    1,
+  );
+  f.sql.exec("DROP TABLE r2_operation_usage");
+  await assert.rejects(env.FILES.list(), /accounting is unavailable/);
+  assert.equal(calls, 1);
+  f.sql.close();
+});
 
 async function nearLimit(remaining: number) {
   const f = fixture();

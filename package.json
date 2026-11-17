@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "react-router dev",
     "build": "react-router build",
+    "build:production": "CLOUDFLARE_ENV=production react-router build",
+    "deploy:production": "npm run build:production && wrangler deploy --config build/server/wrangler.json",
+    "db:migrate:production": "wrangler d1 migrations apply DB --env production --remote",
     "preview": "npm run build && vite preview --host 127.0.0.1",
     "cf:typegen": "wrangler types --include-runtime=false",
     "typecheck": "npm run cf:typegen && react-router typegen && tsc",

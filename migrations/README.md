@@ -4,6 +4,7 @@
 `0002_tweet_archives.sql` adds immutable post snapshots and archived image metadata.
 `0003_tags_and_deletion.sql` adds tags, item assignments, and durable storage cleanup records.
 `0005_storage_quota.sql` adds the storage ledger, inventory gate, and atomic quota trigger.
+`0006_r2_operation_budget.sql` adds shared monthly R2 operation counters.
 The schemas use D1 foreign keys and indexes for collection/date ordering.
 
 Run `npm run db:migrate:local` before local development. For deployment, provision
