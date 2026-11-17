@@ -84,7 +84,9 @@ export function TweetCard({
       <div className="item-info">
         <div className="item-title-row">
           <button className="item-title" onClick={open}>
-            View saved post
+            {item.title === "x.com" || item.title === "twitter.com"
+              ? "View saved post"
+              : item.title}
           </button>
         </div>
         <ItemFooter item={item} collection={collection} />

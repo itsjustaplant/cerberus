@@ -85,6 +85,144 @@ try {
     await delay(200);
   }
   assert.ok(ready, logs);
+  // Collection lifecycle and bulk actions run against disposable storage only.
+  const { collection: actionSource } = await api("/api/collections", {
+    name: "Actions source",
+  });
+  const { collection: actionTarget } = await api("/api/collections", {
+    name: "Actions target",
+  });
+  await api(
+    `/api/collections/${actionSource.id}`,
+    { name: "Renamed source" },
+    200,
+    "PATCH",
+  );
+  assert.match(await page(`/collections/${actionSource.id}`), /Renamed source/);
+  await api("/api/collections/inbox", {}, 400, "DELETE");
+  await api("/api/collections/inbox", { name: "Changed" }, 400, "PATCH");
+  await api("/api/collections/missing", {}, 404, "DELETE");
+  const { item: actionLink } = await api("/api/items", {
+    url: "https://example.com/bulk-fixture",
+    collection_id: actionSource.id,
+    tags: "original",
+  });
+  const actionUpload = new FormData();
+  actionUpload.set(
+    "file",
+    new File(["bulk bytes"], "bulk-fixture.txt", { type: "text/plain" }),
+  );
+  actionUpload.set("collection_id", actionSource.id);
+  const { item: actionFile } = await api("/api/items", actionUpload);
+  await api(`/api/collections/${actionSource.id}`, {}, 409, "DELETE");
+  assert.equal((await fetch(base + `/api/files/${actionFile.id}`)).status, 200);
+  await api(
+    `/api/collections/${actionSource.id}`,
+    { collection_id: actionSource.id },
+    400,
+    "DELETE",
+  );
+  await api(
+    `/api/collections/${actionSource.id}`,
+    { collection_id: "missing" },
+    404,
+    "DELETE",
+  );
+  await api(
+    `/api/collections/${actionSource.id}`,
+    { collection_id: actionTarget.id },
+    200,
+    "DELETE",
+  );
+  assert.equal(
+    (await fetch(base + `/collections/${actionSource.id}`)).status,
+    404,
+  );
+  assert.match(await page(`/collections/${actionTarget.id}`), /bulk-fixture/);
+  assert.equal(
+    await (await fetch(base + `/api/files/${actionFile.id}`)).text(),
+    "bulk bytes",
+  );
+  await api(
+    `/api/items/${actionLink.id}`,
+    { title: "Renamed bulk fixture" },
+    200,
+    "PATCH",
+  );
+  assert.match(
+    await page(`/collections/${actionTarget.id}`),
+    /Renamed bulk fixture/,
+  );
+  const actionIds = [actionLink.id, actionFile.id];
+  // Validate the combined tag count before changing any selected item.
+  await api(
+    "/api/items/bulk",
+    {
+      action: "tags",
+      ids: actionIds,
+      tags: Array.from({ length: 10 }, (_, n) => `extra-${n}`).join(","),
+    },
+    400,
+  );
+  assert.doesNotMatch(
+    await page(`/collections/${actionTarget.id}`),
+    /#extra-0/,
+  );
+  await api(
+    "/api/items/bulk",
+    { action: "move", ids: actionIds, collection_id: "missing" },
+    404,
+  );
+  await api(
+    "/api/items/bulk",
+    { action: "delete", ids: [...actionIds, "missing"] },
+    409,
+  );
+  await api("/api/items/bulk", { action: "delete", ids: [] }, 400);
+  await api(
+    "/api/items/bulk",
+    { action: "delete", ids: Array(49).fill(actionLink.id) },
+    400,
+  );
+  await api("/api/items/bulk", { action: "invalid", ids: actionIds }, 400);
+  await api(
+    "/api/items/bulk",
+    { action: "tags", ids: actionIds, tags: "original, added" },
+    200,
+  );
+  // Repeated additions are idempotent and preserve old tags.
+  await api(
+    "/api/items/bulk",
+    { action: "tags", ids: actionIds, tags: "added" },
+    200,
+  );
+  assert.match(
+    await page(`/collections/${actionTarget.id}?tag=original&tag=added`),
+    /Renamed bulk fixture/,
+  );
+  await api(
+    "/api/items/bulk",
+    { action: "move", ids: actionIds, collection_id: "inbox" },
+    200,
+  );
+  assert.match(await page("/collections/inbox"), /Renamed bulk fixture/);
+  await api(`/api/collections/${actionTarget.id}`, {}, 200, "DELETE");
+  const deletedActions = await api(
+    "/api/items/bulk",
+    { action: "delete", ids: actionIds },
+    200,
+  );
+  assert.deepEqual(deletedActions.succeeded.sort(), actionIds.sort());
+  assert.deepEqual(deletedActions.failed, []);
+  assert.equal((await fetch(base + `/api/files/${actionFile.id}`)).status, 404);
+  assert.equal(
+    (await (await fetch(base + "/api/storage")).json()).storage.usedBytes,
+    0,
+  );
+  console.log(
+    "PASS: collection rename, protected Inbox, required destination, preserved files, item rename, bulk validation/move/additive tags/deletion.",
+  );
+
   const emptyLibrary = await page();
   assert.match(emptyLibrary, /No items yet/);
   assert.match(emptyLibrary, /<title>Cerberus<\/title>/);

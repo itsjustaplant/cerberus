@@ -645,3 +645,95 @@ html[data-input-modality="keyboard"] .storage-segment {
     display: block;
   }
 }
+
+.context-positioner {
+  z-index: 65;
+}
+.context-menu {
+  min-width: 190px;
+  max-width: min(320px, calc(100vw - 24px));
+  max-height: var(--available-height);
+  overflow-y: auto;
+  background: var(--surface);
+  color: var(--toast-text);
+  border: 1px solid var(--border);
+  padding: 4px;
+  box-shadow: 0 12px 32px #0003;
+}
+.context-menu-item {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+.context-menu-item[data-highlighted] {
+  background: var(--selection);
+}
+.context-menu-item[data-disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+.context-menu-item.is-destructive {
+  color: var(--danger);
+}
+.context-separator {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+.item-card-shell,
+.collection-card-wrap {
+  position: relative;
+  min-width: 0;
+}
+.item-card-shell {
+  -webkit-touch-callout: none;
+}
+.item-card-shell:focus-visible,
+.collection-card-wrap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.collection-card-wrap .collection-card {
+  height: 100%;
+}
+.collection-card-wrap .collection-card-top > svg {
+  visibility: hidden;
+}
+.collection-menu-button {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  background: var(--surface);
+}
+.item-selection {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+}
+.item-selection input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #d00000;
+}
+.item-card-shell.is-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.collection-management {
+  display: grid;
+  gap: 16px;
+}
+.manage-collection {
+  margin-top: 10px;
+}

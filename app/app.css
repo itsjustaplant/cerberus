@@ -1,15 +1,7 @@
-@font-face {
-  font-family: "Commit Mono";
-  src: url("/fonts/CommitMono-VF.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-}
-
 :root {
   font-family:
-    "Commit Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas,
-    "Liberation Mono", monospace;
+    ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono",
+    monospace;
   color: #fafafa;
   background: #080808;
   font-synthesis: none;

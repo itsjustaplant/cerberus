@@ -1,4 +1,8 @@
 import {
+  ActionContextMenu,
+  type ContextAction,
+} from "../components/action-context-menu";
+import {
   useEffect,
   useId,
   useState,
@@ -7,6 +11,9 @@ import {
 } from "react";
 import {
   Maximize2,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
   ArrowRight,
   ArrowUpRight,
   ChevronRight,
@@ -180,6 +187,94 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
   const [moving, setMoving] = useState<Item | null>(null);
   const [tagging, setTagging] = useState<Item | null>(null);
   const [deleting, setDeleting] = useState<Item | null>(null);
+  const [collectionAction, setCollectionAction] = useState<{
+    collection: Collection;
+    mode: "manage" | "rename" | "delete";
+  } | null>(null);
+  const [renamingItem, setRenamingItem] = useState<Item | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkAction, setBulkAction] = useState<
+    "move" | "tags" | "delete" | null
+  >(null);
+  const visibleSelected = data.items.filter((item) =>
+    selectedIds.includes(item.id),
+  );
+  const selectionKey = [
+    data.view,
+    data.collection,
+    data.query,
+    data.kind,
+    data.page,
+    ...data.selectedTags,
+  ].join("|");
+  useEffect(() => {
+    setSelectedIds([]);
+    setBulkAction(null);
+  }, [selectionKey]);
+  function toggleItem(id: string) {
+    setSelectedIds((ids) =>
+      ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id],
+    );
+  }
+  function collectionMenu(collection: Collection): ContextAction[] {
+    return [
+      {
+        label: "Open collection",
+        onClick: () => {
+          void navigate(collectionPath(collection.id));
+        },
+      },
+      {
+        label: "Rename collection",
+        onClick: () => setCollectionAction({ collection, mode: "rename" }),
+        disabled: collection.id === "inbox",
+      },
+      {
+        label: "Delete collection",
+        onClick: () => setCollectionAction({ collection, mode: "delete" }),
+        destructive: true,
+        disabled: collection.id === "inbox",
+      },
+    ];
+  }
+  function itemMenu(item: Item): ContextAction[] {
+    const bulk = selectedIds.includes(item.id) && visibleSelected.length > 1;
+    return [
+      { label: "Open item", onClick: () => setActiveItemId(item.id) },
+      {
+        label: selectedIds.includes(item.id) ? "Deselect item" : "Select item",
+        onClick: () => {
+          toggleItem(item.id);
+        },
+      },
+      ...(bulk
+        ? [
+            {
+              label: `Move ${visibleSelected.length} selected items`,
+              onClick: () => setBulkAction("move"),
+            },
+            {
+              label: "Add tags to selection",
+              onClick: () => setBulkAction("tags"),
+            },
+            {
+              label: `Delete ${visibleSelected.length} selected items`,
+              onClick: () => setBulkAction("delete"),
+              destructive: true,
+            },
+          ]
+        : [
+            { label: "Rename item", onClick: () => setRenamingItem(item) },
+            { label: "Edit tags", onClick: () => setTagging(item) },
+            { label: "Move item", onClick: () => setMoving(item) },
+            {
+              label: "Delete item",
+              onClick: () => setDeleting(item),
+              destructive: true,
+            },
+          ]),
+    ];
+  }
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const activeItem =
     data.focusedItem || data.items.find((item) => item.id === activeItemId);
@@ -327,17 +422,22 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           {data.collections
             .filter((c) => c.id !== "inbox")
             .map((c, i) => (
-              <Link
+              <ActionContextMenu
                 key={c.id}
-                className={`nav-link ${data.collection === c.id ? "selected" : ""}`}
-                to={collectionPath(c.id)}
-                aria-label={c.name}
-                title={c.name}
+                label={`Collection ${c.name}`}
+                actions={collectionMenu(c)}
               >
-                <Folder size={17} />
-                <span className="truncate nav-label">{c.name}</span>
-                <span className="nav-count">{c.count}</span>
-              </Link>
+                <Link
+                  className={`nav-link ${data.collection === c.id ? "selected" : ""}`}
+                  to={collectionPath(c.id)}
+                  aria-label={c.name}
+                  title={c.name}
+                >
+                  <Folder size={17} />
+                  <span className="truncate nav-label">{c.name}</span>
+                  <span className="nav-count">{c.count}</span>
+                </Link>
+              </ActionContextMenu>
             ))}
           <button
             className="nav-link new-collection"
@@ -395,6 +495,19 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                 <span className="heading-dot">.</span>
               </h1>
               {description && <p className="page-description">{description}</p>}
+              {selected && (
+                <button
+                  className="text-link manage-collection"
+                  onClick={() =>
+                    setCollectionAction({
+                      collection: selected,
+                      mode: "manage",
+                    })
+                  }
+                >
+                  Manage collection
+                </button>
+              )}
             </div>
             {collectionsView ? (
               <button
@@ -413,7 +526,15 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           {collectionsView ? (
             <div className="collections-grid">
               {data.collections.map((c, i) => (
-                <CollectionCard key={c.id} collection={c} tone={i % 4} />
+                <CollectionCard
+                  key={c.id}
+                  collection={c}
+                  tone={i % 4}
+                  actions={collectionMenu(c)}
+                  manage={() =>
+                    setCollectionAction({ collection: c, mode: "manage" })
+                  }
+                />
               ))}
               <button
                 className="collection-card create-card"
@@ -451,6 +572,13 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                           key={c.id}
                           collection={c}
                           tone={i % 4}
+                          actions={collectionMenu(c)}
+                          manage={() =>
+                            setCollectionAction({
+                              collection: c,
+                              mode: "manage",
+                            })
+                          }
                         />
                       ))}
                       <button
@@ -562,14 +690,28 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                 {data.items.length ? (
                   <div className="items-grid">
                     {data.items.map((item) => (
-                      <ItemCard
+                      <ActionContextMenu
                         key={item.id}
-                        item={item}
-                        collection={data.collections.find(
-                          (c) => c.id === item.collection_id,
-                        )}
-                        openItem={() => setActiveItemId(item.id)}
-                      />
+                        className={`item-card-shell ${selectedIds.includes(item.id) ? "is-selected" : ""}`}
+                        label={`Actions for ${item.title}`}
+                        actions={itemMenu(item)}
+                      >
+                        <label className="item-selection">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(item.id)}
+                            onChange={() => toggleItem(item.id)}
+                            aria-label={`Select ${item.title}`}
+                          />
+                        </label>
+                        <ItemCard
+                          item={item}
+                          collection={data.collections.find(
+                            (c) => c.id === item.collection_id,
+                          )}
+                          openItem={() => setActiveItemId(item.id)}
+                        />
+                      </ActionContextMenu>
                     ))}
                   </div>
                 ) : (
@@ -673,6 +815,98 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
           <span>Save</span>
         </button>
       </nav>
+      <SheetShell
+        open={!!collectionAction}
+        onClose={() => setCollectionAction(null)}
+        title={
+          collectionAction?.mode === "delete"
+            ? "Delete collection?"
+            : collectionAction?.mode === "rename"
+              ? "Rename collection"
+              : "Manage collection"
+        }
+        description={collectionAction?.collection.name}
+      >
+        {collectionAction && (
+          <CollectionManagement
+            key={`${collectionAction.collection.id}-${collectionAction.mode}`}
+            collection={collectionAction.collection}
+            collections={data.collections}
+            mode={collectionAction.mode}
+            changeMode={(mode) =>
+              setCollectionAction({ ...collectionAction, mode })
+            }
+            onSave={(destination, deleted) => {
+              const removed = collectionAction.collection.id;
+              setCollectionAction(null);
+              if (deleted && data.collection === removed) {
+                setActiveItemId(null);
+                void navigate(destination ? collectionPath(destination) : "/", {
+                  replace: true,
+                });
+                toast.success("Collection deleted. Items preserved.");
+              } else
+                saved(deleted ? "Collection deleted." : "Collection renamed.");
+            }}
+          />
+        )}
+      </SheetShell>
+      <SheetShell
+        open={!!renamingItem}
+        onClose={() => setRenamingItem(null)}
+        title="Rename item"
+      >
+        {renamingItem && (
+          <RenameItem
+            key={renamingItem.id}
+            item={renamingItem}
+            onSave={() => {
+              setRenamingItem(null);
+              saved("Item renamed.", renamingItem);
+            }}
+          />
+        )}
+      </SheetShell>
+      <SheetShell
+        open={!!bulkAction}
+        onClose={() => setBulkAction(null)}
+        title={
+          bulkAction === "delete"
+            ? `Delete ${visibleSelected.length} items?`
+            : bulkAction === "move"
+              ? "Move selected items"
+              : "Add tags to selected items"
+        }
+        description={
+          bulkAction === "delete"
+            ? "This permanently deletes the selected items and their files and archives."
+            : `${visibleSelected.length} items selected on this page.`
+        }
+      >
+        {bulkAction && (
+          <BulkItemForm
+            action={bulkAction}
+            items={visibleSelected}
+            collections={data.collections}
+            onSave={(succeeded, failures, cleanup) => {
+              setSelectedIds((ids) =>
+                ids.filter((id) => !succeeded.includes(id)),
+              );
+              setBulkAction(null);
+              if (failures)
+                toast.error(
+                  `${failures} items could not be updated. They remain selected.`,
+                );
+              else {
+                toast.success(
+                  `${succeeded.length} items updated.${cleanup ? " Storage cleanup will retry automatically." : ""}`,
+                );
+              }
+              void revalidator.revalidate();
+            }}
+          />
+        )}
+      </SheetShell>
       <SheetShell
         open={!!tagging}
         onClose={() => setTagging(null)}
@@ -789,31 +1023,51 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
 function CollectionCard({
   collection: c,
   tone,
+  actions,
+  manage,
 }: {
   collection: Collection;
   tone: number;
+  actions: ContextAction[];
+  manage: () => void;
 }) {
   return (
-    <Link to={collectionPath(c.id)} className={`collection-card tone-${tone}`}>
-      <div className="collection-card-top">
-        <span className="folder-tile">
-          {c.id === "inbox" ? (
-            <Inbox size={22} strokeWidth={1.5} />
-          ) : (
-            <Folder size={22} strokeWidth={1.5} />
-          )}
-        </span>
-        <ArrowUpRight size={16} />
-      </div>
-      <div>
-        <h3>{c.name}</h3>
-        <p>
-          <span className="collection-count">{c.count}</span>
-          <span>{c.count === 1 ? "item" : "items"}</span>
-          {c.id === "inbox" && <span className="default-label">Default</span>}
-        </p>
-      </div>
-    </Link>
+    <ActionContextMenu
+      actions={actions}
+      className="collection-card-wrap"
+      label={`Actions for ${c.name}`}
+    >
+      <Link
+        to={collectionPath(c.id)}
+        className={`collection-card tone-${tone}`}
+      >
+        <div className="collection-card-top">
+          <span className="folder-tile">
+            {c.id === "inbox" ? (
+              <Inbox size={22} strokeWidth={1.5} />
+            ) : (
+              <Folder size={22} strokeWidth={1.5} />
+            )}
+          </span>
+          <ArrowUpRight size={16} />
+        </div>
+        <div>
+          <h3>{c.name}</h3>
+          <p>
+            <span className="collection-count">{c.count}</span>
+            <span>{c.count === 1 ? "item" : "items"}</span>
+            {c.id === "inbox" && <span className="default-label">Default</span>}
+          </p>
+        </div>
+      </Link>
+      <button
+        className="icon-button collection-menu-button"
+        onClick={manage}
+        aria-label={`Manage ${c.name}`}
+      >
+        <MoreHorizontal size={18} />
+      </button>
+    </ActionContextMenu>
   );
 }
 
@@ -942,6 +1196,8 @@ async function send(
     collection?: { id: string };
     item?: ItemDestination;
     cleanup_pending?: boolean;
+    succeeded?: string[];
+    failed?: { id: string; error: string }[];
   };
   if (!response.ok)
     throw new Error(result.error || "Something went wrong. Try again.");
@@ -1002,9 +1258,11 @@ function CreateCollection({ onSave }: { onSave: (id: string) => void }) {
 function CollectionSelect({
   collections,
   selected,
+  label = "Save to",
 }: {
   collections: Collection[];
   selected: string;
+  label?: string;
 }) {
   const id = useId();
   const options = collections.map((c) => ({
@@ -1013,10 +1271,15 @@ function CollectionSelect({
   }));
   return (
     <div className="collection-select-field">
-      <label id={id}>Save to</label>
-      <Select.Root name="collection_id" defaultValue={selected} items={options}>
+      <label id={id}>{label}</label>
+      <Select.Root
+        name="collection_id"
+        defaultValue={selected || null}
+        items={options}
+        required
+      >
         <Select.Trigger className="select-trigger" aria-labelledby={id}>
-          <Select.Value />
+          <Select.Value placeholder="Choose a collection" />
           <Select.Icon>
             <ChevronDown size={16} />
           </Select.Icon>
@@ -1294,5 +1557,246 @@ function DeleteItem({
         </button>
       </div>
     </div>
+  );
+}
+
+function CollectionManagement({
+  collection,
+  collections,
+  mode,
+  changeMode,
+  onSave,
+}: {
+  collection: Collection;
+  collections: Collection[];
+  mode: "manage" | "rename" | "delete";
+  changeMode: (mode: "rename" | "delete") => void;
+  onSave: (destination: string | null, deleted: boolean) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [needsDestination, setNeedsDestination] = useState(
+    collection.count > 0,
+  );
+  if (mode === "manage")
+    return (
+      <div className="collection-management">
+        <p>{plural(collection.count)}</p>
+        {collection.id === "inbox" ? (
+          <p>
+            Inbox is your default collection and cannot be renamed or deleted.
+          </p>
+        ) : (
+          <>
+            <button
+              className="button secondary"
+              onClick={() => changeMode("rename")}
+            >
+              <Pencil size={16} />
+              Rename collection
+            </button>
+            <button
+              className="button secondary"
+              onClick={() => changeMode("delete")}
+            >
+              <Trash2 size={16} />
+              Delete collection
+            </button>
+          </>
+        )}
+      </div>
+    );
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setBusy(true);
+    const fields = Object.fromEntries(new FormData(event.currentTarget));
+    try {
+      await send(
+        `/api/collections/${collection.id}`,
+        fields,
+        mode === "delete" ? "DELETE" : "PATCH",
+      );
+      onSave(
+        typeof fields.collection_id === "string" ? fields.collection_id : null,
+        mode === "delete",
+      );
+    } catch (e) {
+      const message = (e as Error).message;
+      setError(message);
+      if (mode === "delete" && message.includes("destination"))
+        setNeedsDestination(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="dialog-form" onSubmit={submit}>
+      {mode === "rename" ? (
+        <label>
+          Collection name
+          <input
+            name="name"
+            required
+            maxLength={80}
+            defaultValue={collection.name}
+          />
+        </label>
+      ) : (
+        <>
+          <p>
+            {needsDestination
+              ? "Move every item to another collection, then delete this collection. Files and archives will be preserved."
+              : "This collection is empty. Deleting it cannot be undone."}
+          </p>
+          {needsDestination && (
+            <CollectionSelect
+              collections={collections.filter((c) => c.id !== collection.id)}
+              selected=""
+              label="Move items to"
+            />
+          )}
+        </>
+      )}
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="button primary form-submit" disabled={busy}>
+        {busy
+          ? "Saving…"
+          : mode === "delete"
+            ? needsDestination
+              ? "Move items and delete collection"
+              : "Delete collection"
+            : "Save name"}
+      </button>
+    </form>
+  );
+}
+function RenameItem({ item, onSave }: { item: Item; onSave: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await send(
+        `/api/items/${item.id}`,
+        Object.fromEntries(new FormData(event.currentTarget)),
+        "PATCH",
+      );
+      onSave();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="dialog-form" onSubmit={submit}>
+      <label>
+        Item name
+        <input
+          name="title"
+          maxLength={200}
+          required
+          defaultValue={item.title}
+        />
+      </label>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="button primary form-submit" disabled={busy}>
+        {busy ? "Saving…" : "Save name"}
+      </button>
+    </form>
+  );
+}
+function BulkItemForm({
+  action,
+  items,
+  collections,
+  onSave,
+}: {
+  action: "move" | "tags" | "delete";
+  items: Item[];
+  collections: Collection[];
+  onSave: (succeeded: string[], failures: number, cleanup: boolean) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const result = await send("/api/items/bulk", {
+        ...Object.fromEntries(new FormData(event.currentTarget)),
+        action,
+        ids: items.map((item) => item.id),
+      });
+      onSave(
+        result.succeeded || [],
+        result.failed?.length || 0,
+        !!result.cleanup_pending,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="dialog-form" onSubmit={submit}>
+      {action === "move" && (
+        <CollectionSelect
+          collections={collections}
+          selected=""
+          label="Move selected items to"
+        />
+      )}
+      {action === "tags" && (
+        <label>
+          Tags to add
+          <input
+            name="tags"
+            required
+            maxLength={1024}
+            placeholder="design, reading"
+          />
+          <span className="field-hint">
+            Adds these tags to every selected item. Existing tags are kept.
+          </span>
+        </label>
+      )}
+      {action === "delete" && (
+        <p>
+          {items.length} selected items will be permanently deleted. This cannot
+          be undone.
+        </p>
+      )}
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <button
+        className="button primary form-submit"
+        disabled={busy || !items.length}
+      >
+        {busy
+          ? "Working…"
+          : action === "delete"
+            ? `Delete ${items.length} items`
+            : action === "move"
+              ? `Move ${items.length} items`
+              : "Add tags"}
+      </button>
+    </form>
   );
 }

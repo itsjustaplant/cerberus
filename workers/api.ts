@@ -1,4 +1,9 @@
 import {
+  renameCollection,
+  removeCollection,
+} from "../app/lib/collection-actions.server";
+import { bulkItems } from "../app/lib/bulk-actions.server";
+import {
   boundedRequest,
   collectionExists,
   createFile,
@@ -74,6 +79,35 @@ export async function api(
         .bind(id, name, description)
         .run();
       return json({ collection: { id, name, description } }, 201);
+    }
+    const collectionMatch = path.match(/^\/api\/collections\/([a-zA-Z0-9-]+)$/);
+    if (collectionMatch) {
+      if (!["PATCH", "DELETE"].includes(request.method))
+        return json({ error: "Method not allowed." }, 405, {
+          Allow: "PATCH, DELETE",
+        });
+      const fields = await readFields(await boundedRequest(request, 8192));
+      return json(
+        request.method === "PATCH"
+          ? {
+              collection: await renameCollection(
+                env,
+                collectionMatch[1],
+                fields,
+              ),
+            }
+          : await removeCollection(env, collectionMatch[1], fields),
+      );
+    }
+    if (path === "/api/items/bulk") {
+      if (request.method !== "POST")
+        return json({ error: "Method not allowed." }, 405, { Allow: "POST" });
+      return json(
+        await bulkItems(
+          env,
+          await readFields(await boundedRequest(request, 16384)),
+        ),
+      );
     }
     if (path === "/api/items") {
       if (request.method !== "POST")
@@ -155,6 +189,14 @@ export async function api(
         .first<{ id: string; url: string | null }>();
       if (!item) throw new InputError("Item not found.", 404);
       const statements: D1PreparedStatement[] = [];
+      if ("title" in fields) {
+        statements.push(
+          env.DB.prepare("UPDATE items SET title = ? WHERE id = ?").bind(
+            text(fields.title, "Title", 200, true),
+            id,
+          ),
+        );
+      }
       if ("collection_id" in fields) {
         const collection = text(fields.collection_id, "Collection", 80, true);
         await collectionExists(env, collection);
@@ -175,7 +217,7 @@ export async function api(
         );
       }
       if (!statements.length)
-        throw new InputError("Provide a collection or tags to update.");
+        throw new InputError("Provide a title, collection, or tags to update.");
       await env.DB.batch(statements);
       return json({ ok: true });
     }
