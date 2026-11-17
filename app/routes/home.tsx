@@ -1,8 +1,12 @@
 import { Input } from "../components/ui/input";
+import { TagField } from "../components/tag-field";
 import { Checkbox } from "@cloudflare/kumo/components/checkbox";
 import { Textarea } from "@cloudflare/kumo/components/input";
 import { Button } from "../components/ui/button";
 import { Tabs } from "@cloudflare/kumo/components/tabs";
+import { Dialog as NavigationDialog } from "@cloudflare/kumo/primitives/dialog";
+import { Breadcrumbs } from "@cloudflare/kumo/components/breadcrumbs";
+import { LinkProvider, type LinkComponentProps } from "@cloudflare/kumo";
 import {
   ActionContextMenu,
   type ContextAction,
@@ -11,6 +15,7 @@ import {
   useEffect,
   useId,
   useState,
+  forwardRef,
   type FormEvent,
   type ReactNode,
 } from "react";
@@ -23,7 +28,6 @@ import {
   ArrowSquareOutIcon,
   ArrowUpRightIcon,
   CheckSquareIcon,
-  CaretRightIcon as ChevronRight,
   FileIcon,
   FolderIcon as Folder,
   FolderOpenIcon,
@@ -50,8 +54,9 @@ import { Select } from "@cloudflare/kumo/components/select";
 import { useKumoToastManager } from "@cloudflare/kumo/components/toast";
 import { collectionPath, itemPath } from "../lib/library-url";
 import { CerberusMark } from "../components/cerberus-mark";
-import { ThemeSwitcher } from "../components/theme-switcher";
 import { StorageMeter } from "../components/storage-meter";
+import { ThemeSwitcher } from "../components/theme-switcher";
+import { LibrarySidebar } from "../components/library-sidebar";
 import { getStorageUsage } from "../lib/storage.server";
 import {
   Sheet,
@@ -78,6 +83,12 @@ import type { Collection, Item } from "../lib/models";
 import { MAX_FILE_SIZE } from "../lib/models";
 
 const TOAST_TIMEOUT = 4500;
+
+const BreadcrumbRouterLink = forwardRef<HTMLAnchorElement, LinkComponentProps>(
+  ({ href, to, ...props }, ref) => (
+    <Link ref={ref} to={href ?? to ?? "/"} {...props} />
+  ),
+);
 
 export function meta() {
   return [
@@ -193,6 +204,16 @@ type ItemDestination = Pick<Item, "id" | "collection_id">;
 
 export default function Home({ loaderData: data }: Route.ComponentProps) {
   const toastManager = useKumoToastManager();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
+  useEffect(() => {
+    const desktop = matchMedia("(min-width: 701px)");
+    const closeOnDesktop = () => {
+      if (desktop.matches) setMobileMenuOpen(false);
+    };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
   const [modal, setModal] = useState<Modal>(null);
   const [moving, setMoving] = useState<Item | null>(null);
   const [tagging, setTagging] = useState<Item | null>(null);
@@ -345,7 +366,6 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
   }, [hasPendingArchives, revalidator]);
   const selected = data.collections.find((c) => c.id === data.collection);
   const total = data.collections.reduce((n, c) => n + c.count, 0);
-  const inbox = data.collections.find((c) => c.id === "inbox");
   const collectionsView = data.view === "collections";
   const title = collectionsView ? "Collections" : selected?.name || "All items";
   const description =
@@ -406,290 +426,298 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
     return libraryPath + (params.size ? `?${params}` : "");
   }
   return (
-    <div className="app-shell">
-      <nav className="workspace-rail" aria-label="Workspace">
-        <Link
-          to="/"
-          className="rail-home"
-          aria-label="Cerberus home"
-          title="Cerberus home"
-        >
-          <Mark />
-        </Link>
-        <span className="rail-divider" />
-        <Link
-          to="/"
-          className={`rail-button ${!collectionsView ? "active" : ""}`}
-          aria-label="Library"
-          title="Library"
-          aria-current={!collectionsView ? "page" : undefined}
-        >
-          <Grid2X2 size={20} />
-        </Link>
-        <Link
-          to="/collections"
-          className={`rail-button ${collectionsView ? "active" : ""}`}
-          aria-label="Collections"
-          title="Collections"
-          aria-current={collectionsView ? "page" : undefined}
-        >
-          <Folder size={20} />
-        </Link>
-      </nav>
-      <aside className="sidebar">
-        <Link to="/" className="brand" aria-label="Cerberus home">
-          <Mark />
-          <span className="sidebar-brand-name">
-            Cerberus<span className="brand-dot">.</span>
-          </span>
-        </Link>
-        <div className="workspace-label">Library</div>
-        <nav aria-label="Library">
-          <Link
-            className={`nav-link ${!data.collection && !collectionsView ? "selected" : ""}`}
-            to="/"
-            aria-label="All items"
-            title="All items"
-          >
-            <Grid2X2 size={17} />
-            <span className="nav-label">All items</span>
-            <span className="nav-count">{total}</span>
-          </Link>
-          <Link
-            className={`nav-link ${data.collection === "inbox" ? "selected" : ""}`}
-            to="/collections/inbox"
-            aria-label="Inbox"
-            title="Inbox"
-          >
-            <Inbox size={18} />
-            <span className="nav-label">Inbox</span>
-            <span className="nav-count">{inbox?.count || 0}</span>
-          </Link>
-          <Link
-            className={`nav-link ${collectionsView ? "selected" : ""}`}
-            to="/collections"
-            aria-label="Collections"
-            title="Collections"
-          >
-            <Folder size={18} />
-            <span className="nav-label">Collections</span>
-            <span className="nav-count">{data.collections.length}</span>
-          </Link>
-        </nav>
-        <div className="sidebar-section">
-          <span>Collections</span>
-        </div>
-        <nav className="collection-nav" aria-label="Collections">
-          {data.collections
-            .filter((c) => c.id !== "inbox")
-            .map((c, i) => (
-              <ActionContextMenu
-                key={c.id}
-                label={`Collection ${c.name}`}
-                actions={collectionMenu(c)}
-              >
-                <Link
-                  className={`nav-link ${data.collection === c.id ? "selected" : ""}`}
-                  to={collectionPath(c.id)}
-                  aria-label={c.name}
-                  title={c.name}
-                >
-                  <Folder size={17} />
-                  <span className="truncate nav-label">{c.name}</span>
-                  <span className="nav-count">{c.count}</span>
-                </Link>
-              </ActionContextMenu>
-            ))}
-          <Button
-            className="nav-link new-collection"
-            aria-label="New collection"
-            title="New collection"
-            onClick={() => setModal("collection")}
-          >
-            <Plus size={17} />
-            <span className="nav-label">New collection</span>
-          </Button>
-        </nav>
-        <div className="sidebar-bottom">
-          <Button
-            className="button primary sidebar-save"
-            aria-label="Save item"
-            title="Save item"
-            onClick={() => setModal("save")}
-          >
-            <span className="nav-label">Save item</span>
-            <Plus size={16} />
-          </Button>
-          <div className="sidebar-storage">
-            <StorageMeter usage={data.storage} placement="sidebar" />
-          </div>
-          <div className="sidebar-theme">
-            <ThemeSwitcher placement="sidebar" />
-          </div>
-        </div>
-      </aside>
-      <div className="main-shell">
-        <header className="topbar">
-          <Link to="/" className="mobile-brand">
-            <Mark />
+    <NavigationDialog.Root
+      open={mobileMenuOpen}
+      onOpenChange={setMobileMenuOpen}
+    >
+      <div className="app-shell" data-sidebar-open={desktopSidebarOpen}>
+        <header className="mobile-app-header">
+          <NavigationDialog.Trigger
+            render={
+              <Button className="mobile-menu-button" aria-label="Open menu">
+                <Mark />
+              </Button>
+            }
+          />
+          <Link to="/" className="mobile-app-brand">
             Cerberus
           </Link>
-          <div className="breadcrumb">
-            <span>Library</span>
-            <ChevronRight size={14} />
-            <span>{title}</span>
-          </div>
-          <div className="topbar-actions">
-            <div className="mobile-theme">
-              <ThemeSwitcher />
-            </div>
-            <div className="mobile-storage">
-              <StorageMeter usage={data.storage} />
-            </div>
-          </div>
         </header>
-        <main className="main-content" data-page-content>
-          <div className="page-heading">
-            <div>
-              <h1>
-                {title}
-                <span className="heading-dot">.</span>
-              </h1>
-              {description && <p className="page-description">{description}</p>}
-              {selected && (
+        <div className="theme-menu-cell">
+          <ThemeSwitcher />
+        </div>
+        <nav className="workspace-rail" aria-label="Workspace">
+          <Link
+            to="/"
+            className="rail-home"
+            aria-label="Cerberus home"
+            title="Cerberus home"
+          >
+            <Mark />
+          </Link>
+          <span className="rail-divider" />
+          <Link
+            to="/"
+            className={`rail-button ${!collectionsView ? "active" : ""}`}
+            aria-label="Library"
+            title="Library"
+            aria-current={!collectionsView ? "page" : undefined}
+          >
+            <Grid2X2 size={20} />
+          </Link>
+          <Link
+            to="/collections"
+            className={`rail-button ${collectionsView ? "active" : ""}`}
+            aria-label="Collections"
+            title="Collections"
+            aria-current={collectionsView ? "page" : undefined}
+          >
+            <Folder size={20} />
+          </Link>
+        </nav>
+        <Link to="/" className="desktop-sidebar-title">
+          Cerberus
+        </Link>
+        <LibrarySidebar
+          desktopOpen={desktopSidebarOpen}
+          onDesktopToggle={() => setDesktopSidebarOpen((open) => !open)}
+          collections={data.collections}
+          collection={data.collection}
+          collectionsView={collectionsView}
+          collectionMenu={collectionMenu}
+          onMobileClose={() => setMobileMenuOpen(false)}
+          onCreateCollection={() => setModal("collection")}
+        />
+        <div className="main-shell">
+          <header className="topbar">
+            <LinkProvider component={BreadcrumbRouterLink}>
+              <Breadcrumbs className="breadcrumb" aria-label="Library location">
+                <Breadcrumbs.Link href="/">Library</Breadcrumbs.Link>
+                <Breadcrumbs.Separator />
+                <Breadcrumbs.Current>{title}</Breadcrumbs.Current>
+              </Breadcrumbs>
+            </LinkProvider>
+            <div className="topbar-actions">
+              <div className="header-cell">
+                <StorageMeter usage={data.storage} />
+              </div>
+              <div className="header-cell">
                 <Button
-                  className="text-link manage-collection"
-                  onClick={() =>
-                    setCollectionAction({
-                      collection: selected,
-                      mode: "manage",
-                    })
-                  }
+                  className="button primary header-save"
+                  aria-label="Save item"
+                  onClick={() => setModal("save")}
                 >
-                  Manage collection
+                  <Plus size={18} />
+                  <span className="header-save-label">Save item</span>
                 </Button>
+              </div>
+            </div>
+          </header>
+          <main className="main-content" data-page-content>
+            <div className="page-heading">
+              <div>
+                <h1>
+                  {title}
+                  <span className="heading-dot">.</span>
+                </h1>
+                {description && (
+                  <p className="page-description">{description}</p>
+                )}
+                {selected && (
+                  <Button
+                    className="text-link manage-collection"
+                    onClick={() =>
+                      setCollectionAction({
+                        collection: selected,
+                        mode: "manage",
+                      })
+                    }
+                  >
+                    Manage collection
+                  </Button>
+                )}
+              </div>
+              {collectionsView ? (
+                <Button
+                  className="button secondary"
+                  onClick={() => setModal("collection")}
+                >
+                  <FolderPlus size={16} />
+                  New collection
+                </Button>
+              ) : (
+                <span className="item-total">
+                  {plural(selected?.count ?? total)}
+                </span>
               )}
             </div>
             {collectionsView ? (
-              <Button
-                className="button secondary"
-                onClick={() => setModal("collection")}
-              >
-                <FolderPlus size={16} />
-                New collection
-              </Button>
-            ) : (
-              <span className="item-total">
-                {plural(selected?.count ?? total)}
-              </span>
-            )}
-          </div>
-          {collectionsView ? (
-            <div className="collections-grid">
-              {data.collections.map((c, i) => (
-                <CollectionCard
-                  key={c.id}
-                  collection={c}
-                  tone={i % 4}
-                  actions={collectionMenu(c)}
-                  manage={() =>
-                    setCollectionAction({ collection: c, mode: "manage" })
-                  }
-                />
-              ))}
-              <Button
-                className="collection-card create-card"
-                onClick={() => setModal("collection")}
-              >
-                <Plus size={24} />
-                <span>New collection</span>
-              </Button>
-            </div>
-          ) : (
-            <>
-              {!data.collection && (
-                <section
-                  className="collections-section"
-                  aria-label="Collections"
+              <div className="collections-grid">
+                {data.collections.map((c, i) => (
+                  <CollectionCard
+                    key={c.id}
+                    collection={c}
+                    tone={i % 4}
+                    actions={collectionMenu(c)}
+                    manage={() =>
+                      setCollectionAction({ collection: c, mode: "manage" })
+                    }
+                  />
+                ))}
+                <Button
+                  className="collection-card create-card"
+                  onClick={() => setModal("collection")}
                 >
+                  <Plus size={24} />
+                  <span>New collection</span>
+                </Button>
+              </div>
+            ) : (
+              <>
+                {!data.collection && (
+                  <section
+                    className="collections-section"
+                    aria-label="Collections"
+                  >
+                    <div className="section-heading">
+                      <h2>
+                        Collections{" "}
+                        <span>
+                          {data.collections.length.toString().padStart(2, "0")}
+                        </span>
+                      </h2>
+                      <Link to="/collections" className="text-link">
+                        View all
+                        <ArrowRightIcon size={14} />
+                      </Link>
+                    </div>
+                    <div className="collection-strip">
+                      {data.collections.slice(0, 3).map((c, i) => (
+                        <CollectionCard
+                          key={c.id}
+                          collection={c}
+                          tone={i % 4}
+                          actions={collectionMenu(c)}
+                          manage={() =>
+                            setCollectionAction({
+                              collection: c,
+                              mode: "manage",
+                            })
+                          }
+                        />
+                      ))}
+                      <Button
+                        className="collection-card create-card"
+                        onClick={() => setModal("collection")}
+                      >
+                        <Plus size={22} />
+                        <span>New collection</span>
+                      </Button>
+                    </div>
+                  </section>
+                )}
+                <section className="items-section" aria-label="Saved items">
                   <div className="section-heading">
                     <h2>
-                      Collections{" "}
-                      <span>
-                        {data.collections.length.toString().padStart(2, "0")}
-                      </span>
+                      {data.collection ? "In this collection" : "Saved items"}
+                      <span>Newest first</span>
                     </h2>
-                    <Link to="/collections" className="text-link">
-                      View all
-                      <ArrowRightIcon size={14} />
-                    </Link>
-                  </div>
-                  <div className="collection-strip">
-                    {data.collections.slice(0, 3).map((c, i) => (
-                      <CollectionCard
-                        key={c.id}
-                        collection={c}
-                        tone={i % 4}
-                        actions={collectionMenu(c)}
-                        manage={() =>
-                          setCollectionAction({
-                            collection: c,
-                            mode: "manage",
-                          })
-                        }
-                      />
-                    ))}
                     <Button
-                      className="collection-card create-card"
-                      onClick={() => setModal("collection")}
+                      className="select-all-button"
+                      aria-pressed={allVisibleSelected}
+                      disabled={!data.items.length}
+                      onClick={() =>
+                        setSelectedIds(
+                          allVisibleSelected
+                            ? []
+                            : data.items.map((item) => item.id),
+                        )
+                      }
                     >
-                      <Plus size={22} />
-                      <span>New collection</span>
+                      {allVisibleSelected ? "Deselect all" : "Select all"}
                     </Button>
                   </div>
-                </section>
-              )}
-              <section className="items-section" aria-label="Saved items">
-                <div className="section-heading">
-                  <h2>
-                    {data.collection ? "In this collection" : "Saved items"}
-                    <span>Newest first</span>
-                  </h2>
-                  <Button
-                    className="select-all-button"
-                    aria-pressed={allVisibleSelected}
-                    disabled={!data.items.length}
-                    onClick={() =>
-                      setSelectedIds(
-                        allVisibleSelected
-                          ? []
-                          : data.items.map((item) => item.id),
-                      )
-                    }
-                  >
-                    {allVisibleSelected ? "Deselect all" : "Select all"}
-                  </Button>
-                </div>
-                <div className="library-toolbar">
-                  <nav aria-label="Item types">
-                    <Tabs
-                      value={data.kind || "all"}
-                      variant="segmented"
-                      size="sm"
-                      className="filter-tabs"
-                      listClassName="filter-tabs-list"
-                      tabs={[
-                        ["all", "", "Everything"],
-                        ["link", "link", "Links"],
-                        ["image", "image", "Images"],
-                        ["file", "file", "Files"],
-                      ].map(([value, kind, label]) => ({
-                        value,
-                        label,
-                        nativeButton: false,
-                        render: (props) => (
+                  <div className="library-toolbar">
+                    <nav aria-label="Item types">
+                      <Tabs
+                        value={data.kind || "all"}
+                        variant="segmented"
+                        size="sm"
+                        className="filter-tabs"
+                        listClassName="filter-tabs-list"
+                        tabs={[
+                          ["all", "", "Everything"],
+                          ["link", "link", "Links"],
+                          ["image", "image", "Images"],
+                          ["file", "file", "Files"],
+                        ].map(([value, kind, label]) => ({
+                          value,
+                          label,
+                          nativeButton: false,
+                          render: (props) => (
+                            <Link
+                              {...props}
+                              to={filterUrl(kind)}
+                              aria-current={
+                                data.kind === kind ? "page" : undefined
+                              }
+                            >
+                              {label}
+                            </Link>
+                          ),
+                        }))}
+                      />
+                    </nav>
+                    <Form
+                      method="get"
+                      action={libraryPath}
+                      className="search-form"
+                      key={`${data.collection}-${data.query}`}
+                      role="search"
+                    >
+                      {data.kind && (
+                        <Input type="hidden" name="kind" value={data.kind} />
+                      )}
+                      {data.selectedTags.map((tag) => (
+                        <Input key={tag} type="hidden" name="tag" value={tag} />
+                      ))}
+                      <Search size={16} />
+                      <Input
+                        aria-label="Search your library"
+                        name="q"
+                        defaultValue={data.query}
+                        placeholder="Search your library…"
+                        maxLength={200}
+                      />
+                      <Button className="sr-only" type="submit">
+                        Search
+                      </Button>
+                      {data.query && (
+                        <Link
+                          className="icon-button"
+                          to={filterUrl(data.kind, data.selectedTags, 1, "")}
+                          aria-label="Clear search"
+                        >
+                          <X size={14} />
+                        </Link>
+                      )}
+                    </Form>
+                  </div>
+                  {import.meta.env.DEV && (
+                    <details className="tabs-reference">
+                      <summary>Compare with previous tabs</summary>
+                      <nav
+                        className="tabs-reference-original"
+                        aria-label="Previous tab style reference"
+                      >
+                        {[
+                          ["", "Everything"],
+                          ["link", "Links"],
+                          ["image", "Images"],
+                          ["file", "Files"],
+                        ].map(([kind, label]) => (
                           <Link
-                            {...props}
+                            key={kind}
                             to={filterUrl(kind)}
                             aria-current={
                               data.kind === kind ? "page" : undefined
@@ -697,442 +725,361 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                           >
                             {label}
                           </Link>
-                        ),
-                      }))}
-                    />
-                  </nav>
-                  <Form
-                    method="get"
-                    action={libraryPath}
-                    className="search-form"
-                    key={`${data.collection}-${data.query}`}
-                    role="search"
-                  >
-                    {data.kind && (
-                      <Input type="hidden" name="kind" value={data.kind} />
-                    )}
-                    {data.selectedTags.map((tag) => (
-                      <Input key={tag} type="hidden" name="tag" value={tag} />
-                    ))}
-                    <Search size={16} />
-                    <Input
-                      aria-label="Search your library"
-                      name="q"
-                      defaultValue={data.query}
-                      placeholder="Search your library…"
-                      maxLength={200}
-                    />
-                    <Button className="sr-only" type="submit">
-                      Search
-                    </Button>
-                    {data.query && (
+                        ))}
+                      </nav>
+                    </details>
+                  )}
+                  {(data.tags.length > 0 || data.selectedTags.length > 0) && (
+                    <nav className="tag-filters" aria-label="Filter by tags">
                       <Link
-                        className="icon-button"
-                        to={filterUrl(data.kind, data.selectedTags, 1, "")}
-                        aria-label="Clear search"
+                        className={`tag-filter ${data.selectedTags.length ? "" : "active"}`}
+                        to={filterUrl(data.kind, [])}
                       >
-                        <X size={14} />
+                        All tags
                       </Link>
-                    )}
-                  </Form>
-                </div>
-                {import.meta.env.DEV && (
-                  <details className="tabs-reference">
-                    <summary>Compare with previous tabs</summary>
-                    <nav
-                      className="tabs-reference-original"
-                      aria-label="Previous tab style reference"
-                    >
                       {[
-                        ["", "Everything"],
-                        ["link", "Links"],
-                        ["image", "Images"],
-                        ["file", "Files"],
-                      ].map(([kind, label]) => (
-                        <Link
-                          key={kind}
-                          to={filterUrl(kind)}
-                          aria-current={data.kind === kind ? "page" : undefined}
-                        >
-                          {label}
-                        </Link>
-                      ))}
+                        ...new Set([
+                          ...data.tags.map((tag) => tag.name),
+                          ...data.selectedTags,
+                        ]),
+                      ]
+                        .sort()
+                        .map((tag) => (
+                          <Link
+                            key={tag}
+                            className={`tag-filter ${data.selectedTags.includes(tag) ? "active" : ""}`}
+                            aria-current={
+                              data.selectedTags.includes(tag)
+                                ? "page"
+                                : undefined
+                            }
+                            to={filterUrl(
+                              data.kind,
+                              data.selectedTags.includes(tag)
+                                ? data.selectedTags.filter(
+                                    (value) => value !== tag,
+                                  )
+                                : [...data.selectedTags, tag],
+                            )}
+                          >
+                            #{tag}
+                          </Link>
+                        ))}
                     </nav>
-                  </details>
-                )}
-                {(data.tags.length > 0 || data.selectedTags.length > 0) && (
-                  <nav className="tag-filters" aria-label="Filter by tags">
-                    <Link
-                      className={`tag-filter ${data.selectedTags.length ? "" : "active"}`}
-                      to={filterUrl(data.kind, [])}
-                    >
-                      All tags
-                    </Link>
-                    {[
-                      ...new Set([
-                        ...data.tags.map((tag) => tag.name),
-                        ...data.selectedTags,
-                      ]),
-                    ]
-                      .sort()
-                      .map((tag) => (
+                  )}
+                  {data.items.length ? (
+                    <div className="items-grid">
+                      {data.items.map((item) => (
+                        <ActionContextMenu
+                          key={item.id}
+                          className={`item-card-shell ${selectedIds.includes(item.id) ? "is-selected" : ""}`}
+                          label={`Actions for ${item.title}`}
+                          actions={itemMenu(item)}
+                        >
+                          <label className="item-selection">
+                            <Checkbox
+                              checked={selectedIds.includes(item.id)}
+                              onCheckedChange={() => toggleItem(item.id)}
+                              aria-label={`Select ${item.title}`}
+                            />
+                          </label>
+                          <ItemCard
+                            item={item}
+                            collection={data.collections.find(
+                              (c) => c.id === item.collection_id,
+                            )}
+                            openItem={() => setActiveItemId(item.id)}
+                          />
+                        </ActionContextMenu>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state">
+                      <div className="empty-art">
+                        <span>
+                          <Link2 size={22} />
+                        </span>
+                        <span>
+                          <Inbox size={32} weight="regular" />
+                        </span>
+                        <span>
+                          <ImageIcon size={22} />
+                        </span>
+                      </div>
+                      <h3>
+                        {data.query || data.kind || data.selectedTags.length
+                          ? "No matching items"
+                          : "No items yet"}
+                      </h3>
+                      {(data.query ||
+                        data.kind ||
+                        data.selectedTags.length > 0) && (
+                        <p>Try another search or clear the filters.</p>
+                      )}
+                      {data.query || data.kind || data.selectedTags.length ? (
+                        <Link className="button secondary" to={libraryPath}>
+                          Clear filters
+                        </Link>
+                      ) : (
+                        <p>Use Save to add your first link, image, or file.</p>
+                      )}
+                    </div>
+                  )}
+                  {(data.hasMore || data.page > 1) && (
+                    <nav className="pagination" aria-label="Library pages">
+                      {data.page > 1 ? (
                         <Link
-                          key={tag}
-                          className={`tag-filter ${data.selectedTags.includes(tag) ? "active" : ""}`}
-                          aria-current={
-                            data.selectedTags.includes(tag) ? "page" : undefined
-                          }
+                          className="button secondary"
                           to={filterUrl(
                             data.kind,
-                            data.selectedTags.includes(tag)
-                              ? data.selectedTags.filter(
-                                  (value) => value !== tag,
-                                )
-                              : [...data.selectedTags, tag],
+                            data.selectedTags,
+                            data.page - 1,
                           )}
                         >
-                          #{tag}
+                          Previous
                         </Link>
-                      ))}
-                  </nav>
-                )}
-                {data.items.length ? (
-                  <div className="items-grid">
-                    {data.items.map((item) => (
-                      <ActionContextMenu
-                        key={item.id}
-                        className={`item-card-shell ${selectedIds.includes(item.id) ? "is-selected" : ""}`}
-                        label={`Actions for ${item.title}`}
-                        actions={itemMenu(item)}
-                      >
-                        <label className="item-selection">
-                          <Checkbox
-                            checked={selectedIds.includes(item.id)}
-                            onCheckedChange={() => toggleItem(item.id)}
-                            aria-label={`Select ${item.title}`}
-                          />
-                        </label>
-                        <ItemCard
-                          item={item}
-                          collection={data.collections.find(
-                            (c) => c.id === item.collection_id,
+                      ) : (
+                        <span />
+                      )}
+                      <span className="quiet">Page {data.page}</span>
+                      {data.hasMore ? (
+                        <Link
+                          className="button secondary"
+                          to={filterUrl(
+                            data.kind,
+                            data.selectedTags,
+                            data.page + 1,
                           )}
-                          openItem={() => setActiveItemId(item.id)}
-                        />
-                      </ActionContextMenu>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    <div className="empty-art">
-                      <span>
-                        <Link2 size={22} />
-                      </span>
-                      <span>
-                        <Inbox size={32} weight="regular" />
-                      </span>
-                      <span>
-                        <ImageIcon size={22} />
-                      </span>
-                    </div>
-                    <h3>
-                      {data.query || data.kind || data.selectedTags.length
-                        ? "No matching items"
-                        : "No items yet"}
-                    </h3>
-                    {(data.query ||
-                      data.kind ||
-                      data.selectedTags.length > 0) && (
-                      <p>Try another search or clear the filters.</p>
-                    )}
-                    {data.query || data.kind || data.selectedTags.length ? (
-                      <Link className="button secondary" to={libraryPath}>
-                        Clear filters
-                      </Link>
-                    ) : (
-                      <p>Use Save to add your first link, image, or file.</p>
-                    )}
-                  </div>
-                )}
-                {(data.hasMore || data.page > 1) && (
-                  <nav className="pagination" aria-label="Library pages">
-                    {data.page > 1 ? (
-                      <Link
-                        className="button secondary"
-                        to={filterUrl(
-                          data.kind,
-                          data.selectedTags,
-                          data.page - 1,
-                        )}
-                      >
-                        Previous
-                      </Link>
-                    ) : (
-                      <span />
-                    )}
-                    <span className="quiet">Page {data.page}</span>
-                    {data.hasMore ? (
-                      <Link
-                        className="button secondary"
-                        to={filterUrl(
-                          data.kind,
-                          data.selectedTags,
-                          data.page + 1,
-                        )}
-                      >
-                        Next <ArrowRightIcon size={14} />
-                      </Link>
-                    ) : (
-                      <span />
-                    )}
-                  </nav>
-                )}
-              </section>
-            </>
+                        >
+                          Next <ArrowRightIcon size={14} />
+                        </Link>
+                      ) : (
+                        <span />
+                      )}
+                    </nav>
+                  )}
+                </section>
+              </>
+            )}
+          </main>
+        </div>
+
+        <SheetShell
+          open={!!collectionAction}
+          onClose={() => setCollectionAction(null)}
+          title={
+            collectionAction?.mode === "delete"
+              ? "Delete collection?"
+              : collectionAction?.mode === "rename"
+                ? "Rename collection"
+                : "Manage collection"
+          }
+          description={collectionAction?.collection.name}
+        >
+          {collectionAction && (
+            <CollectionManagement
+              key={`${collectionAction.collection.id}-${collectionAction.mode}`}
+              collection={collectionAction.collection}
+              collections={data.collections}
+              mode={collectionAction.mode}
+              changeMode={(mode) =>
+                setCollectionAction({ ...collectionAction, mode })
+              }
+              onSave={(destination, deleted) => {
+                const removed = collectionAction.collection.id;
+                setCollectionAction(null);
+                if (deleted && data.collection === removed) {
+                  setActiveItemId(null);
+                  void navigate(
+                    destination ? collectionPath(destination) : "/",
+                    {
+                      replace: true,
+                    },
+                  );
+                  toastManager.add({
+                    title: "Collection deleted. Items preserved.",
+                    variant: "success",
+                    timeout: TOAST_TIMEOUT,
+                  });
+                } else
+                  saved(
+                    deleted ? "Collection deleted." : "Collection renamed.",
+                  );
+              }}
+            />
           )}
-        </main>
-      </div>
-      <nav className="mobile-nav" aria-label="Mobile library">
-        <Link
-          to="/"
-          className={!data.collection && !collectionsView ? "active" : ""}
+        </SheetShell>
+        <SheetShell
+          open={!!renamingItem}
+          onClose={() => setRenamingItem(null)}
+          title="Rename item"
         >
-          <Grid2X2 size={20} />
-          <span>All items</span>
-        </Link>
-        <Link
-          to="/collections/inbox"
-          className={data.collection === "inbox" ? "active" : ""}
-        >
-          <Inbox size={21} />
-          <span>Inbox</span>
-        </Link>
-        <Link
-          to="/collections"
-          className={
-            collectionsView || (data.collection && data.collection !== "inbox")
-              ? "active"
-              : ""
+          {renamingItem && (
+            <RenameItem
+              key={renamingItem.id}
+              item={renamingItem}
+              onSave={() => {
+                setRenamingItem(null);
+                saved("Item renamed.", renamingItem);
+              }}
+            />
+          )}
+        </SheetShell>
+        <SheetShell
+          open={!!bulkAction}
+          onClose={() => setBulkAction(null)}
+          title={
+            bulkAction === "delete"
+              ? `Delete ${visibleSelected.length} items?`
+              : bulkAction === "move"
+                ? "Move selected items"
+                : "Add tags to selected items"
+          }
+          description={
+            bulkAction === "delete"
+              ? "This permanently deletes the selected items and their files and archives."
+              : `${visibleSelected.length} items selected on this page.`
           }
         >
-          <Folder size={21} />
-          <span>Collections</span>
-        </Link>
-        <Button className="mobile-nav-save" onClick={() => setModal("save")}>
-          <Plus size={22} />
-          <span>Save</span>
-        </Button>
-      </nav>
-      <SheetShell
-        open={!!collectionAction}
-        onClose={() => setCollectionAction(null)}
-        title={
-          collectionAction?.mode === "delete"
-            ? "Delete collection?"
-            : collectionAction?.mode === "rename"
-              ? "Rename collection"
-              : "Manage collection"
-        }
-        description={collectionAction?.collection.name}
-      >
-        {collectionAction && (
-          <CollectionManagement
-            key={`${collectionAction.collection.id}-${collectionAction.mode}`}
-            collection={collectionAction.collection}
-            collections={data.collections}
-            mode={collectionAction.mode}
-            changeMode={(mode) =>
-              setCollectionAction({ ...collectionAction, mode })
-            }
-            onSave={(destination, deleted) => {
-              const removed = collectionAction.collection.id;
-              setCollectionAction(null);
-              if (deleted && data.collection === removed) {
-                setActiveItemId(null);
-                void navigate(destination ? collectionPath(destination) : "/", {
-                  replace: true,
-                });
-                toastManager.add({
-                  title: "Collection deleted. Items preserved.",
-                  variant: "success",
-                  timeout: TOAST_TIMEOUT,
-                });
-              } else
-                saved(deleted ? "Collection deleted." : "Collection renamed.");
-            }}
-          />
-        )}
-      </SheetShell>
-      <SheetShell
-        open={!!renamingItem}
-        onClose={() => setRenamingItem(null)}
-        title="Rename item"
-      >
-        {renamingItem && (
-          <RenameItem
-            key={renamingItem.id}
-            item={renamingItem}
-            onSave={() => {
-              setRenamingItem(null);
-              saved("Item renamed.", renamingItem);
-            }}
-          />
-        )}
-      </SheetShell>
-      <SheetShell
-        open={!!bulkAction}
-        onClose={() => setBulkAction(null)}
-        title={
-          bulkAction === "delete"
-            ? `Delete ${visibleSelected.length} items?`
-            : bulkAction === "move"
-              ? "Move selected items"
-              : "Add tags to selected items"
-        }
-        description={
-          bulkAction === "delete"
-            ? "This permanently deletes the selected items and their files and archives."
-            : `${visibleSelected.length} items selected on this page.`
-        }
-      >
-        {bulkAction && (
-          <BulkItemForm
-            action={bulkAction}
-            items={visibleSelected}
-            collections={data.collections}
-            onSave={(succeeded, failures, cleanup) => {
-              setSelectedIds((ids) =>
-                ids.filter((id) => !succeeded.includes(id)),
-              );
-              setBulkAction(null);
-              if (failures)
-                toastManager.add({
-                  title: `${failures} items could not be updated. They remain selected.`,
-                  variant: "error",
-                  timeout: TOAST_TIMEOUT,
-                });
-              else {
-                toastManager.add({
-                  title: `${succeeded.length} items updated.${cleanup ? " Storage cleanup will retry automatically." : ""}`,
-                  variant: "success",
-                  timeout: TOAST_TIMEOUT,
-                });
-              }
-              void revalidator.revalidate();
-            }}
-          />
-        )}
-      </SheetShell>
-      <SheetShell
-        open={!!tagging}
-        onClose={() => setTagging(null)}
-        title="Edit tags"
-        description={tagging?.title}
-      >
-        {tagging && (
-          <EditTags
-            item={tagging}
-            onSave={() => {
-              setTagging(null);
-              saved("Tags updated.", tagging);
-            }}
-          />
-        )}
-      </SheetShell>
-      <SheetShell
-        open={!!deleting}
-        onClose={() => setDeleting(null)}
-        title="Delete item?"
-        description="This permanently removes the item, its uploaded file, and any saved post archive."
-      >
-        {deleting && (
-          <DeleteItem
-            item={deleting}
-            cancel={() => setDeleting(null)}
-            onDelete={(pending) => {
-              setDeleting(null);
-              setActiveItemId(null);
-              saved(
-                pending
-                  ? "Item deleted. Storage cleanup will retry automatically."
-                  : "Item deleted.",
-              );
-            }}
-          />
-        )}
-      </SheetShell>
-      <SheetShell
-        open={!!activeItem}
-        onClose={() => {
-          setActiveItemId(null);
-          if (data.focusedItem)
-            void navigate(collectionPath(data.focusedItem.collection_id), {
-              replace: true,
-            });
-        }}
-        title={activeItem?.tweet ? "Saved post" : activeItem?.title || "Item"}
-        actions={
-          activeItem && (
-            <ItemHeaderActions
-              item={activeItem}
-              editTags={() => setTagging(activeItem)}
-              move={() => setMoving(activeItem)}
-              remove={() => setDeleting(activeItem)}
+          {bulkAction && (
+            <BulkItemForm
+              action={bulkAction}
+              items={visibleSelected}
+              collections={data.collections}
+              onSave={(succeeded, failures, cleanup) => {
+                setSelectedIds((ids) =>
+                  ids.filter((id) => !succeeded.includes(id)),
+                );
+                setBulkAction(null);
+                if (failures)
+                  toastManager.add({
+                    title: `${failures} items could not be updated. They remain selected.`,
+                    variant: "error",
+                    timeout: TOAST_TIMEOUT,
+                  });
+                else {
+                  toastManager.add({
+                    title: `${succeeded.length} items updated.${cleanup ? " Storage cleanup will retry automatically." : ""}`,
+                    variant: "success",
+                    timeout: TOAST_TIMEOUT,
+                  });
+                }
+                void revalidator.revalidate();
+              }}
             />
-          )
-        }
-      >
-        {activeItem?.tweet ? (
-          <TweetArchiveView
-            key={activeItem.id}
-            item={activeItem}
-            refresh={() => {
-              void revalidator.revalidate();
+          )}
+        </SheetShell>
+        <SheetShell
+          open={!!tagging}
+          onClose={() => setTagging(null)}
+          title="Edit tags"
+          description={tagging?.title}
+        >
+          {tagging && (
+            <EditTags
+              item={tagging}
+              onSave={() => {
+                setTagging(null);
+                saved("Tags updated.", tagging);
+              }}
+            />
+          )}
+        </SheetShell>
+        <SheetShell
+          open={!!deleting}
+          onClose={() => setDeleting(null)}
+          title="Delete item?"
+          description="This permanently removes the item, its uploaded file, and any saved post archive."
+        >
+          {deleting && (
+            <DeleteItem
+              item={deleting}
+              cancel={() => setDeleting(null)}
+              onDelete={(pending) => {
+                setDeleting(null);
+                setActiveItemId(null);
+                saved(
+                  pending
+                    ? "Item deleted. Storage cleanup will retry automatically."
+                    : "Item deleted.",
+                );
+              }}
+            />
+          )}
+        </SheetShell>
+        <SheetShell
+          open={!!activeItem}
+          onClose={() => {
+            setActiveItemId(null);
+            if (data.focusedItem)
+              void navigate(collectionPath(data.focusedItem.collection_id), {
+                replace: true,
+              });
+          }}
+          title={activeItem?.tweet ? "Saved post" : activeItem?.title || "Item"}
+          actions={
+            activeItem && (
+              <ItemHeaderActions
+                item={activeItem}
+                editTags={() => setTagging(activeItem)}
+                move={() => setMoving(activeItem)}
+                remove={() => setDeleting(activeItem)}
+              />
+            )
+          }
+        >
+          {activeItem?.tweet ? (
+            <TweetArchiveView
+              key={activeItem.id}
+              item={activeItem}
+              refresh={() => {
+                void revalidator.revalidate();
+              }}
+            />
+          ) : activeItem ? (
+            <ItemDetail key={activeItem.id} item={activeItem} />
+          ) : null}
+        </SheetShell>
+        <SheetShell
+          open={modal === "collection"}
+          onClose={() => setModal(null)}
+          title="New collection"
+        >
+          <CreateCollection
+            onSave={(id) => {
+              saved("Collection created.");
+              void navigate(collectionPath(id));
             }}
           />
-        ) : activeItem ? (
-          <ItemDetail key={activeItem.id} item={activeItem} />
-        ) : null}
-      </SheetShell>
-      <SheetShell
-        open={modal === "collection"}
-        onClose={() => setModal(null)}
-        title="New collection"
-      >
-        <CreateCollection
-          onSave={(id) => {
-            saved("Collection created.");
-            void navigate(collectionPath(id));
-          }}
-        />
-      </SheetShell>
-      <SheetShell
-        open={modal === "save"}
-        onClose={() => setModal(null)}
-        title="Save item"
-      >
-        <SaveItem
-          key={modal === "save" ? "open" : "closed"}
-          collections={data.collections}
-          selected={data.collection || "inbox"}
-          onSave={(item) => saved("Item saved.", item)}
-        />
-      </SheetShell>
-      <SheetShell
-        open={!!moving}
-        onClose={() => setMoving(null)}
-        title="Move to a collection"
-        description={moving?.title || "Choose a collection."}
-      >
-        {moving && (
-          <MoveItem
-            item={moving}
+        </SheetShell>
+        <SheetShell
+          open={modal === "save"}
+          onClose={() => setModal(null)}
+          title="Save item"
+        >
+          <SaveItem
+            key={modal === "save" ? "open" : "closed"}
             collections={data.collections}
-            onSave={(item) => saved("Item moved.", item)}
+            selected={data.collection || "inbox"}
+            onSave={(item) => saved("Item saved.", item)}
           />
-        )}
-      </SheetShell>
-    </div>
+        </SheetShell>
+        <SheetShell
+          open={!!moving}
+          onClose={() => setMoving(null)}
+          title="Move to a collection"
+          description={moving?.title || "Choose a collection."}
+        >
+          {moving && (
+            <MoveItem
+              item={moving}
+              collections={data.collections}
+              onSave={(item) => saved("Item moved.", item)}
+            />
+          )}
+        </SheetShell>
+      </div>
+    </NavigationDialog.Root>
   );
 }
 
@@ -1513,13 +1460,7 @@ function SaveItem({
           Title <span className="optional">optional</span>
           <Input name="title" maxLength={200} placeholder="Title" />
         </label>
-        <label>
-          Tags <span className="optional">optional</span>
-          <Input name="tags" maxLength={1024} placeholder="design, reading" />
-          <span className="field-hint">
-            Separate tags with commas. Up to 10 tags.
-          </span>
-        </label>
+        <TagField label="Tags (optional)" disabled={busy} />
         <CollectionSelect collections={collections} selected={selected} />
         {error && (
           <p className="form-error" role="alert">
@@ -1598,18 +1539,11 @@ function EditTags({ item, onSave }: { item: Item; onSave: () => void }) {
   }
   return (
     <form className="dialog-form" onSubmit={submit}>
-      <label>
-        Tags
-        <Input
-          name="tags"
-          maxLength={1024}
-          defaultValue={(item.tags || []).join(", ")}
-          placeholder="design, reading"
-        />
-        <span className="field-hint">
-          Separate tags with commas. Leave empty to remove all tags.
-        </span>
-      </label>
+      <TagField
+        defaultValue={item.tags || []}
+        disabled={busy}
+        description="Press Enter or comma to add a tag. Up to 10 tags, 32 characters each. Remove all tags to clear them."
+      />
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -1866,18 +1800,12 @@ function BulkItemForm({
         />
       )}
       {action === "tags" && (
-        <label>
-          Tags to add
-          <Input
-            name="tags"
-            required
-            maxLength={1024}
-            placeholder="design, reading"
-          />
-          <span className="field-hint">
-            Adds these tags to every selected item. Existing tags are kept.
-          </span>
-        </label>
+        <TagField
+          label="Tags to add"
+          required
+          disabled={busy}
+          description="Press Enter or comma to add a tag. Adds these tags to every selected item. Existing tags are kept."
+        />
       )}
       {action === "delete" && (
         <p>

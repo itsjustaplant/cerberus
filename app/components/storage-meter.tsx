@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Popover } from "@cloudflare/kumo/components/popover";
+import { Meter } from "@cloudflare/kumo/components/meter";
 import { Button } from "./ui/button";
 import {
   CaretDownIcon as ChevronDown,
@@ -55,7 +56,7 @@ export function StorageMeter({
   }, []);
   const current = live || usage;
   const label = current.ready
-    ? `${formatBytes(current.usedBytes)} / 10 GB`
+    ? `${formatBytes(current.usedBytes)} / ${formatBytes(current.limitBytes)}`
     : "Checking storage…";
   const reserved = current.reservedBytes
     ? ` Includes ${formatBytes(current.reservedBytes)} reserved or unconfirmed.`
@@ -70,23 +71,19 @@ export function StorageMeter({
   ];
   function bar(compact = false) {
     return (
-      <span
-        className={`storage-segments ${compact ? "is-compact" : ""}`}
-        aria-hidden="true"
-      >
-        {segments.map((segment, index) => (
-          <span
-            key={segment.key}
-            className={`storage-segment segment-${segment.key}`}
-            data-dimmed={
-              highlight !== null && highlight !== segment.key ? "" : undefined
-            }
-            style={{
-              transform: `translateX(${segments.slice(0, index).reduce((sum, entry) => sum + entry.bytes / limit, 0) * 100}%) scaleX(${segment.bytes / limit})`,
-            }}
-          />
-        ))}
-      </span>
+      <Meter
+        label="File storage"
+        value={used}
+        min={0}
+        max={limit}
+        showValue={false}
+        aria-label="File storage"
+        aria-valuetext={label + reserved}
+        aria-busy={!current.ready}
+        className={`storage-kumo-meter ${compact ? "is-compact" : ""}`}
+        trackClassName="storage-meter-track"
+        indicatorClassName="storage-meter-indicator"
+      />
     );
   }
   return (
@@ -126,16 +123,7 @@ export function StorageMeter({
               </strong>
               <span>of {formatBytes(current.limitBytes)}</span>
             </div>
-            <div
-              role="meter"
-              aria-label="File storage"
-              aria-valuemin={0}
-              aria-valuemax={current.limitBytes}
-              aria-valuenow={used}
-              aria-valuetext={label + reserved}
-            >
-              {bar()}
-            </div>
+            {bar()}
             <div className="storage-breakdown">
               {segments.map((segment) => (
                 <Button

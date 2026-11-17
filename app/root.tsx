@@ -15,23 +15,14 @@ import "./kumo-theme.css";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" data-mode="dark" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
         />
-        <meta
-          name="theme-color"
-          content="#ffffff"
-          media="(prefers-color-scheme: light)"
-        />
-        <meta
-          name="theme-color"
-          content="#0b090a"
-          media="(prefers-color-scheme: dark)"
-        />
+        <meta name="theme-color" content="#0b090a" />
         <meta name="color-scheme" content="light dark" />
         <meta name="application-name" content="Cerberus" />
         <meta name="apple-mobile-web-app-title" content="Cerberus" />
