@@ -1,3 +1,5 @@
+import { Empty } from "@cloudflare/kumo/components/empty";
+import { LinkButton } from "@cloudflare/kumo/components/button";
 import { LayerCard } from "@cloudflare/kumo/components/layer-card";
 import { Input } from "../components/ui/input";
 import { TagField } from "../components/tag-field";
@@ -417,6 +419,30 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
     }
   }
   const libraryPath = data.collection ? collectionPath(data.collection) : "/";
+  const hasItemFilters = Boolean(
+    data.query || data.kind || data.selectedTags.length,
+  );
+  const emptyState =
+    data.page > 1
+      ? {
+          title: "No items on this page",
+          description: "Return to the first page to see the available items.",
+          action: {
+            label: "Go to first page",
+            href: filterUrl(data.kind, data.selectedTags),
+          },
+        }
+      : hasItemFilters
+        ? {
+            title: "No matching items",
+            description: "Try another search or clear the filters.",
+            action: { label: "Clear filters", href: libraryPath },
+          }
+        : {
+            title: "No items yet",
+            description: "Use Save to add your first link, image, or file.",
+            action: null,
+          };
   function filterUrl(
     kind: string,
     tags = data.selectedTags,
@@ -790,36 +816,34 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                       ))}
                     </div>
                   ) : (
-                    <div className="empty-state">
-                      <div className="empty-art">
-                        <span>
-                          <Link2 size={22} />
-                        </span>
-                        <span>
-                          <Inbox size={32} weight="regular" />
-                        </span>
-                        <span>
-                          <ImageIcon size={22} />
-                        </span>
-                      </div>
-                      <h3>
-                        {data.query || data.kind || data.selectedTags.length
-                          ? "No matching items"
-                          : "No items yet"}
-                      </h3>
-                      {(data.query ||
-                        data.kind ||
-                        data.selectedTags.length > 0) && (
-                        <p>Try another search or clear the filters.</p>
-                      )}
-                      {data.query || data.kind || data.selectedTags.length ? (
-                        <Link className="button secondary" to={libraryPath}>
-                          Clear filters
-                        </Link>
-                      ) : (
-                        <p>Use Save to add your first link, image, or file.</p>
-                      )}
-                    </div>
+                    <Empty
+                      className="library-empty-state bg-kumo-base"
+                      icon={
+                        hasItemFilters || data.page > 1 ? (
+                          <Search size={40} aria-hidden="true" />
+                        ) : (
+                          <Inbox
+                            size={40}
+                            weight="regular"
+                            aria-hidden="true"
+                          />
+                        )
+                      }
+                      title={emptyState.title}
+                      description={emptyState.description}
+                      contents={
+                        emptyState.action ? (
+                          <LinkProvider component={BreadcrumbRouterLink}>
+                            <LinkButton
+                              variant="secondary"
+                              href={emptyState.action.href}
+                            >
+                              {emptyState.action.label}
+                            </LinkButton>
+                          </LinkProvider>
+                        ) : undefined
+                      }
+                    />
                   )}
                 </section>
               </>

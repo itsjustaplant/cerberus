@@ -485,58 +485,6 @@ h1 {
 .search-form input::placeholder {
   color: #a3a3a3;
 }
-.empty-state {
-  min-height: 355px;
-  border: 1px solid #212121;
-  border-radius: 2px;
-  background: var(--surface);
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  justify-content: center;
-  padding: 42px 24px;
-  text-align: center;
-}
-.empty-art {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 26px;
-}
-.empty-art > span {
-  width: 48px;
-  height: 54px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #2e2e2e;
-  border-radius: 2px;
-  background: #141414;
-  color: #a3a3a3;
-  transform: none;
-}
-.empty-art > span:nth-child(2) {
-  width: 67px;
-  height: 70px;
-  color: var(--accent);
-  transform: none;
-  background: var(--accent-soft);
-  box-shadow: none;
-}
-.empty-art > span:last-child {
-  transform: none;
-}
-.empty-state h3 {
-  font-size: 19px;
-  letter-spacing: -0.4px;
-  font-weight: 500;
-}
-.empty-state p {
-  max-width: 330px;
-  font-size: 12px;
-  line-height: 1.8;
-  color: #a3a3a3;
-  margin: 10px 0 21px;
-}
 .small-dot {
   display: inline-block;
   width: 4px;
@@ -846,9 +794,6 @@ h1 {
   .collection-card {
     min-height: 170px;
   }
-  .empty-state {
-    min-height: 420px;
-  }
 }
 @media (max-width: 1100px) {
   .sidebar {
@@ -1001,17 +946,6 @@ h1 {
   }
   .search-form input::placeholder {
     font-size: 13px;
-  }
-  .empty-state {
-    min-height: 330px;
-    padding: 30px 16px;
-  }
-  .empty-state h3 {
-    font-size: 17px;
-  }
-  .empty-state p {
-    font-size: 12px;
-    max-width: 260px;
   }
   .mobile-nav {
     display: flex;
@@ -1185,9 +1119,6 @@ h1 {
 .dialog-popup > h2 + .dialog-form,
 .dialog-popup > h2 + .save-tabs {
   margin-top: 24px;
-}
-.empty-state h3 + .button {
-  margin-top: 20px;
 }
 @media (max-width: 700px) {
   .item-total {

@@ -224,7 +224,9 @@ try {
   );
 
   const emptyLibrary = await page();
-  assert.match(emptyLibrary, /No items yet/);
+  assert.match(emptyLibrary, /<h2[^>]*>No items yet<\/h2>/);
+  assert.match(emptyLibrary, /Use Save to add your first link, image, or file/);
+  assert.doesNotMatch(emptyLibrary, /Clear filters/);
   assert.match(emptyLibrary, /<title>Cerberus<\/title>/);
   assert.match(
     emptyLibrary,
@@ -459,6 +461,18 @@ try {
   assert.match(filteredPageTwo, /Pagination fixture 0</);
   assert.doesNotMatch(filteredPageTwo, /A useful reference<|example\.org</);
   assert.match(control(filteredPageTwo, "Next page"), / disabled(?:=|\s|>)/);
+  const noMatches = await page(
+    `${collectionPath}?q=cerberus-no-such-item&kind=image&tag=nevermatches`,
+  );
+  assert.match(noMatches, /<h2[^>]*>No matching items<\/h2>/);
+  assert.match(noMatches, /Clear filters/);
+  assert.doesNotMatch(noMatches, /No items yet/);
+  const emptyPage = await page(
+    `${collectionPath}?q=Pagination&kind=link&page=999`,
+  );
+  assert.match(emptyPage, /No items on this page/);
+  assert.match(emptyPage, /Go to first page/);
+  assert.match(emptyPage, /href="[^"]*\?q=Pagination&amp;kind=link"/);
   const itemPath = `${collectionPath}/items/${link.id}`;
   assert.equal((await fetch(base + itemPath)).status, 200);
   const itemData = await fetch(base + `${itemPath}.data`);

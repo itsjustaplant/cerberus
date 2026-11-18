@@ -115,9 +115,7 @@
   background: #ffffff;
 }
 :root[data-theme="light"] .preview-icon,
-:root[data-theme="light"] .folder-tile,
-:root[data-theme="light"] .empty-art > span,
-:root[data-theme="light"] .empty-art > span:nth-child(2) {
+:root[data-theme="light"] .folder-tile {
   background: #f5f3f4;
   color: var(--accent);
   border-color: #d3d3d3;
@@ -218,8 +216,7 @@
   background: #d3d3d3;
 }
 :root[data-theme="light"] .upload-field,
-:root[data-theme="light"] .item-detail-file,
-:root[data-theme="light"] .empty-state {
+:root[data-theme="light"] .item-detail-file {
   background: #ffffff;
   color: #161a1d;
   border-color: var(--border);
