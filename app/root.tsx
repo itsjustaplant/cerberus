@@ -33,7 +33,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
           name="apple-mobile-web-app-status-bar-style"
           content="black-translucent"
         />
-        <link rel="manifest" href="/manifest.webmanifest" />
+        <link
+          rel="manifest"
+          href="/manifest.webmanifest"
+          crossOrigin="use-credentials"
+        />
         <link
           rel="apple-touch-icon"
           sizes="180x180"
