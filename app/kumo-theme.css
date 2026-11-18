@@ -110,6 +110,15 @@
 .root {
   isolation: isolate;
 }
+/* Kumo tooltip positioners must paint above sheets, galleries, and drawers. */
+body div:has(> .kumo-tooltip-popup) {
+  z-index: 100;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kumo-tooltip-popup {
+    transition: none;
+  }
+}
 .app-shell,
 .sidebar,
 .topbar {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Popover } from "@cloudflare/kumo/components/popover";
 import { Meter } from "@cloudflare/kumo/components/meter";
+import { Tooltip } from "@cloudflare/kumo/components/tooltip";
 import { Button } from "./ui/button";
 import {
   CaretDownIcon as ChevronDown,
@@ -110,12 +111,17 @@ export function StorageMeter({
           <Popover.Popup className="storage-popup">
             <header className="storage-popup-header">
               <Popover.Title>Storage</Popover.Title>
-              <Popover.Close
-                className="icon-button"
-                aria-label="Close storage details"
-              >
-                <X size={16} />
-              </Popover.Close>
+              <Tooltip
+                content="Close storage details"
+                render={
+                  <Popover.Close
+                    className="icon-button"
+                    aria-label="Close storage details"
+                  >
+                    <X size={16} />
+                  </Popover.Close>
+                }
+              />
             </header>
             <div className="storage-summary">
               <strong>

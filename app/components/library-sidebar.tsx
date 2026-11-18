@@ -185,6 +185,7 @@ export function LibrarySidebar({
           className="sidebar-logo-toggle"
           onClick={onDesktopToggle}
           aria-label={desktopOpen ? "Collapse sidebar" : "Open sidebar"}
+          title={desktopOpen ? "Collapse sidebar" : "Open sidebar"}
           aria-expanded={desktopOpen}
           aria-controls="desktop-library-sidebar"
         >
@@ -226,6 +227,7 @@ export function LibrarySidebar({
                   variant="ghost"
                   className="mobile-drawer-logo-button"
                   aria-label="Close menu"
+                  title="Close menu"
                 >
                   <CerberusMark />
                 </Button>

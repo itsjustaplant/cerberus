@@ -7,6 +7,7 @@ import {
 } from "react";
 import { Dialog as SheetPrimitive } from "@cloudflare/kumo/primitives/dialog";
 import { XIcon as X } from "@phosphor-icons/react";
+import { Tooltip } from "@cloudflare/kumo/components/tooltip";
 
 export const Sheet = SheetPrimitive.Root;
 export const SheetTrigger = SheetPrimitive.Trigger;
@@ -40,12 +41,17 @@ export function SheetContent({
           {children}
         </SheetPortalContext.Provider>
         {showCloseButton && (
-          <SheetPrimitive.Close
-            className="icon-button sheet-close"
-            aria-label="Close sheet"
-          >
-            <X size={19} />
-          </SheetPrimitive.Close>
+          <Tooltip
+            content="Close sheet"
+            render={
+              <SheetPrimitive.Close
+                className="icon-button sheet-close"
+                aria-label="Close sheet"
+              >
+                <X size={19} />
+              </SheetPrimitive.Close>
+            }
+          />
         )}
       </SheetPrimitive.Popup>
     </SheetPrimitive.Portal>

@@ -27,6 +27,7 @@ export function ThemeSwitcher() {
             shape="square"
             className="theme-menu-trigger"
             aria-label="Change theme"
+            title="Change theme"
           >
             <Icon size={20} className="theme-menu-icon" />
           </Button>

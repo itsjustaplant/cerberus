@@ -1,6 +1,7 @@
 import { Button } from "./ui/button";
 import { useState } from "react";
 import { Dialog } from "@cloudflare/kumo/primitives/dialog";
+import { Tooltip } from "@cloudflare/kumo/components/tooltip";
 import {
   CaretLeftIcon as ChevronLeft,
   CaretRightIcon as ChevronRight,
@@ -76,12 +77,17 @@ export function ImageGallery({
             >
               {zoomed ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
             </Button>
-            <Dialog.Close
-              className="icon-button"
-              aria-label="Close image viewer"
-            >
-              <X size={20} />
-            </Dialog.Close>
+            <Tooltip
+              content="Close image viewer"
+              render={
+                <Dialog.Close
+                  className="icon-button"
+                  aria-label="Close image viewer"
+                >
+                  <X size={20} />
+                </Dialog.Close>
+              }
+            />
           </div>
           <Dialog.Description className="sr-only">
             Use the previous and next buttons or left and right arrow keys to

@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 export function Button({
   className = "",
   type,
+  title,
   ...props
 }: ComponentProps<"button">) {
   const primary = /\bprimary\b/.test(className);
@@ -38,10 +39,11 @@ export function Button({
       {...(icon
         ? {
             shape: "square" as const,
-            "aria-label": props["aria-label"] || props.title || "Item actions",
+            "aria-label": props["aria-label"] || title || "Item actions",
           }
         : { shape: "base" as const })}
       className={`cerberus-control ${layout}`}
+      title={title || (icon ? props["aria-label"] : undefined)}
       {...props}
     />
   );

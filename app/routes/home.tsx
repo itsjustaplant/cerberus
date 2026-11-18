@@ -6,6 +6,7 @@ import { Button } from "../components/ui/button";
 import { Tabs } from "@cloudflare/kumo/components/tabs";
 import { Dialog as NavigationDialog } from "@cloudflare/kumo/primitives/dialog";
 import { Breadcrumbs } from "@cloudflare/kumo/components/breadcrumbs";
+import { Tooltip } from "@cloudflare/kumo/components/tooltip";
 import { LinkProvider, type LinkComponentProps } from "@cloudflare/kumo";
 import {
   ActionContextMenu,
@@ -434,7 +435,11 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
         <header className="mobile-app-header">
           <NavigationDialog.Trigger
             render={
-              <Button className="mobile-menu-button" aria-label="Open menu">
+              <Button
+                className="mobile-menu-button"
+                aria-label="Open menu"
+                title="Open menu"
+              >
                 <Mark />
               </Button>
             }
@@ -505,6 +510,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                 <Button
                   className="button primary header-save"
                   aria-label="Save item"
+                  title="Save item"
                   onClick={() => setModal("save")}
                 >
                   <Plus size={18} />
@@ -693,13 +699,23 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                         Search
                       </Button>
                       {data.query && (
-                        <Link
-                          className="icon-button"
-                          to={filterUrl(data.kind, data.selectedTags, 1, "")}
-                          aria-label="Clear search"
-                        >
-                          <X size={14} />
-                        </Link>
+                        <Tooltip
+                          content="Clear search"
+                          render={
+                            <Link
+                              className="icon-button"
+                              to={filterUrl(
+                                data.kind,
+                                data.selectedTags,
+                                1,
+                                "",
+                              )}
+                              aria-label="Clear search"
+                            >
+                              <X size={14} />
+                            </Link>
+                          }
+                        />
                       )}
                     </Form>
                   </div>

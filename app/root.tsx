@@ -9,6 +9,7 @@ import {
 } from "react-router";
 import type { Route } from "./+types/root";
 import { Toasty } from "@cloudflare/kumo/components/toast";
+import { TooltipProvider } from "@cloudflare/kumo/components/tooltip";
 import { ThemeProvider, themeInit } from "./components/theme-provider";
 import { PageTransitions } from "./components/page-transitions";
 import "./kumo-theme.css";
@@ -50,9 +51,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <ThemeProvider>
-          <Toasty>
-            <div className="root">{children}</div>
-          </Toasty>
+          <TooltipProvider delay={350}>
+            <Toasty>
+              <div className="root">{children}</div>
+            </Toasty>
+          </TooltipProvider>
         </ThemeProvider>
         <ScrollRestoration />
         <Scripts />
