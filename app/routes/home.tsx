@@ -703,32 +703,6 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                       )}
                     </Form>
                   </div>
-                  {import.meta.env.DEV && (
-                    <details className="tabs-reference">
-                      <summary>Compare with previous tabs</summary>
-                      <nav
-                        className="tabs-reference-original"
-                        aria-label="Previous tab style reference"
-                      >
-                        {[
-                          ["", "Everything"],
-                          ["link", "Links"],
-                          ["image", "Images"],
-                          ["file", "Files"],
-                        ].map(([kind, label]) => (
-                          <Link
-                            key={kind}
-                            to={filterUrl(kind)}
-                            aria-current={
-                              data.kind === kind ? "page" : undefined
-                            }
-                          >
-                            {label}
-                          </Link>
-                        ))}
-                      </nav>
-                    </details>
-                  )}
                   {(data.tags.length > 0 || data.selectedTags.length > 0) && (
                     <nav className="tag-filters" aria-label="Filter by tags">
                       <Link

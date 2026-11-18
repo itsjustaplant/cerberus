@@ -33,7 +33,7 @@
   --accent-soft: var(--color-kumo-tint);
   --pressed-surface: var(--color-kumo-tint);
   --pressed-text: var(--text-color-kumo-default);
-  --cerberus-tabs-track: #1a1a1a;
+  --cerberus-tabs-track: var(--color-kumo-canvas);
   --cerberus-tabs-active: #333333;
   --cerberus-tabs-text: #9a9a9a;
   --cerberus-tabs-active-text: #ececec;
@@ -883,44 +883,6 @@
   :is(.filter-tabs-list, .save-tabs-list)
   > [role="presentation"] {
   box-shadow: 0 1px 2px rgb(22 26 29 / 10%);
-}
-.tabs-reference {
-  margin-bottom: 16px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.tabs-reference summary {
-  cursor: pointer;
-  margin-bottom: 8px;
-}
-.tabs-reference-original {
-  display: flex;
-  gap: 0;
-  padding: 2px;
-  border: 1px solid #b1a7a640;
-  background: transparent;
-}
-.tabs-reference-original a {
-  flex: 1;
-  padding: 6px 12px;
-  color: #9a9a9a;
-  text-align: center;
-  font-size: 13px;
-}
-.tabs-reference-original a[aria-current="page"] {
-  background: #252525;
-  color: #f5f3f4;
-}
-:root[data-theme="light"] .tabs-reference-original {
-  background: #d3d3d3;
-  border-color: #d3d3d3;
-}
-:root[data-theme="light"] .tabs-reference-original a {
-  color: #161a1db3;
-}
-:root[data-theme="light"] .tabs-reference-original a[aria-current="page"] {
-  background: #ffffff;
-  color: #161a1d;
 }
 .upload-field {
   border-radius: 12px;
