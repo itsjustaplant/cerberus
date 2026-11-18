@@ -13,8 +13,6 @@
   font-display: swap;
 }
 :root {
-  /* Reserve scrollbar space before hydration and while sheets lock scrolling. */
-  scrollbar-gutter: stable;
   --sidebar-slide-duration: 300ms;
   --sidebar-slide-easing: cubic-bezier(0, 0, 0.2, 1);
   /* Match the documentation site's mobile navigation transition. */
@@ -453,31 +451,9 @@ body div:has(> .kumo-tooltip-popup) {
   border-radius: 0;
 }
 @media (min-width: 701px) {
-  .app-shell::after {
-    content: "";
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    right: calc(var(--workspace-rail-size) - 1px);
-    width: 1px;
-    background: var(--workspace-border);
-    pointer-events: none;
-    z-index: 9;
-  }
-  .app-shell::before {
-    content: "";
-    position: fixed;
-    top: calc(var(--workspace-rail-size) - 1px);
-    right: 0;
-    width: var(--workspace-rail-size);
-    height: 1px;
-    background: var(--workspace-border);
-    pointer-events: none;
-    z-index: 9;
-  }
   .app-shell > .main-shell {
     margin-left: var(--workspace-sidebar-width);
-    margin-right: var(--workspace-rail-size);
+    margin-right: 0;
     min-height: 100dvh;
     border: 0;
     transition: margin-left var(--sidebar-slide-duration)
@@ -486,6 +462,7 @@ body div:has(> .kumo-tooltip-popup) {
   .topbar {
     height: var(--workspace-rail-size);
     border-right: 0;
+    padding-right: var(--workspace-rail-size);
   }
   .app-shell .main-content {
     --workspace-content-inset: 36px;
