@@ -1,3 +1,4 @@
+import { LayerCard } from "@cloudflare/kumo/components/layer-card";
 import { Button } from "./ui/button";
 import { ImageGallery } from "./image-gallery";
 import { useState } from "react";
@@ -49,7 +50,8 @@ export function TweetCard({
   const preview =
     characters.length > 320 ? characters.slice(0, 320).join("") + "…" : body;
   return (
-    <article
+    <LayerCard
+      render={<article />}
       className="item-card tweet-card"
       onClick={(event) => {
         if (!(event.target as HTMLElement).closest("a, button")) open();
@@ -96,7 +98,7 @@ export function TweetCard({
         </div>
         <ItemFooter item={item} collection={collection} />
       </div>
-    </article>
+    </LayerCard>
   );
 }
 

@@ -555,17 +555,18 @@ body div:has(> .kumo-tooltip-popup) {
 .item-count {
   border-radius: 6px;
 }
+/* LayerCard provides each card's surface, ring, rounding, and shadow. */
 .collection-card {
-  background: var(--color-kumo-base);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: 0;
   min-height: 148px;
   padding: 22px;
-  box-shadow: 0 1px 2px #00000008;
 }
-.collection-card:hover {
-  border-color: color-mix(in srgb, var(--muted) 55%, transparent);
-  background: var(--color-kumo-base);
+.collection-card:hover,
+.item-card:hover {
+  --tw-ring-color: color-mix(in srgb, var(--muted) 55%, transparent);
+}
+.collection-card.create-card {
+  border: 1px dashed var(--color-kumo-line);
 }
 .collection-card h3 {
   font-family: inherit;
@@ -666,17 +667,10 @@ body div:has(> .kumo-tooltip-popup) {
   gap: 20px;
 }
 .item-card {
-  background: var(--color-kumo-base);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 1px 2px #00000008;
-}
-.item-card:hover {
-  border-color: color-mix(in srgb, var(--muted) 55%, transparent);
+  border: 0;
 }
 .item-card-shell.is-selected {
-  border-radius: 12px;
+  border-radius: 8px;
   outline-color: var(--color-kumo-brand);
 }
 .item-info {

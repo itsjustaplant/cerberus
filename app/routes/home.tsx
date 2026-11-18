@@ -1,3 +1,4 @@
+import { LayerCard } from "@cloudflare/kumo/components/layer-card";
 import { Input } from "../components/ui/input";
 import { TagField } from "../components/tag-field";
 import { Checkbox } from "@cloudflare/kumo/components/checkbox";
@@ -573,13 +574,14 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                     }
                   />
                 ))}
-                <Button
-                  className="collection-card create-card"
+                <LayerCard
+                  render={<button type="button" />}
+                  className="collection-card create-card ring-0"
                   onClick={() => setModal("collection")}
                 >
                   <Plus size={24} />
                   <span>New collection</span>
-                </Button>
+                </LayerCard>
               </div>
             ) : (
               <>
@@ -615,13 +617,14 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                           }
                         />
                       ))}
-                      <Button
-                        className="collection-card create-card"
+                      <LayerCard
+                        render={<button type="button" />}
+                        className="collection-card create-card ring-0"
                         onClick={() => setModal("collection")}
                       >
                         <Plus size={22} />
                         <span>New collection</span>
-                      </Button>
+                      </LayerCard>
                     </div>
                   </section>
                 )}
@@ -1093,8 +1096,8 @@ function CollectionCard({
       className="collection-card-wrap"
       label={`Actions for ${c.name}`}
     >
-      <Link
-        to={collectionPath(c.id)}
+      <LayerCard
+        render={<Link to={collectionPath(c.id)} />}
         className={`collection-card tone-${tone}`}
       >
         <div className="collection-card-top">
@@ -1115,7 +1118,7 @@ function CollectionCard({
             {c.id === "inbox" && <span className="default-label">Default</span>}
           </p>
         </div>
-      </Link>
+      </LayerCard>
       <Button
         className="icon-button collection-menu-button"
         onClick={manage}
@@ -1139,7 +1142,8 @@ function ItemCard({
   if (item.tweet)
     return <TweetCard item={item} collection={collection} open={openItem} />;
   return (
-    <article
+    <LayerCard
+      render={<article />}
       className={`item-card kind-${item.kind}`}
       onClick={(event) => {
         if (!(event.target as HTMLElement).closest("a, button")) openItem();
@@ -1183,7 +1187,7 @@ function ItemCard({
         </div>
         <ItemFooter item={item} collection={collection} />
       </div>
-    </article>
+    </LayerCard>
   );
 }
 
