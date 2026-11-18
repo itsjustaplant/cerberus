@@ -424,6 +424,7 @@ try {
   assert.equal((await fetch(base + "/api/files/missing")).status, 404);
   assert.equal((await fetch(base + "/?collection=missing")).status, 404);
   assert.equal((await fetch(base + "/api/capture")).status, 405);
+  assert.doesNotMatch(await page(collectionPath), /class="library-footer"/);
   for (let index = 0; index < 50; index++) {
     await api("/api/items", {
       url: `https://example.com/pagination/${index}`,
@@ -433,13 +434,31 @@ try {
   }
   const pageOne = await page(collectionPath);
   const pageTwo = await page(`${collectionPath}?page=2`);
-  assert.match(pageOne, new RegExp(`href="${collectionPath}\\?page=2"`));
-  assert.match(pageTwo, new RegExp(`href="${collectionPath}"`));
+  const control = (html, label) => {
+    const button = html.match(
+      new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`),
+    )?.[0];
+    assert.ok(button, `Missing ${label} control`);
+    return button;
+  };
+  assert.match(control(pageOne, "Previous page"), / disabled(?:=|\s|>)/);
+  assert.doesNotMatch(control(pageOne, "Next page"), / disabled(?:=|\s|>)/);
+  assert.doesNotMatch(control(pageTwo, "Previous page"), / disabled(?:=|\s|>)/);
+  assert.match(control(pageTwo, "Next page"), / disabled(?:=|\s|>)/);
   assert.match(pageOne, /Library pages/);
+  assert.match(pageOne, /<footer[^>]*aria-label="Library pagination"/);
+  assert.match(pageTwo, /<footer[^>]*aria-label="Library pagination"/);
+  assert.doesNotMatch(pageOne, /class="preview-open"/);
   assert.match(pageOne, /Pagination fixture 49/);
   assert.doesNotMatch(pageOne, /Pagination fixture 0</);
   assert.match(pageTwo, /Pagination fixture 0</);
   assert.match(pageTwo, /Previous/);
+  const filteredPageTwo = await page(
+    `${collectionPath}?q=Pagination&kind=link&page=2`,
+  );
+  assert.match(filteredPageTwo, /Pagination fixture 0</);
+  assert.doesNotMatch(filteredPageTwo, /A useful reference<|example\.org</);
+  assert.match(control(filteredPageTwo, "Next page"), / disabled(?:=|\s|>)/);
   const itemPath = `${collectionPath}/items/${link.id}`;
   assert.equal((await fetch(base + itemPath)).status, 200);
   const itemData = await fetch(base + `${itemPath}.data`);

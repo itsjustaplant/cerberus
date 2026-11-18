@@ -55,6 +55,7 @@
   height: var(--workspace-rail-size);
   z-index: 20;
   background: var(--color-kumo-canvas);
+  border-top: 1px solid var(--workspace-border);
   border-bottom: 1px solid var(--workspace-border);
   border-left: 1px solid var(--workspace-border);
 }
@@ -711,14 +712,19 @@ body div:has(> .kumo-tooltip-popup) {
   border-radius: 5px;
 }
 .item-selection {
-  top: 10px;
-  right: 10px;
+  top: 4px;
+  right: 4px;
+  width: 44px;
+  height: 44px;
   background: none;
   border: 0;
 }
 .item-selection [data-kumo-component="Checkbox"] {
   width: 18px;
   height: 18px;
+}
+.item-selection [data-kumo-component="Checkbox"]::after {
+  inset: -13px;
 }
 .sheet-content {
   border-radius: 16px 0 0 16px;
@@ -1529,4 +1535,59 @@ html[data-input-modality="keyboard"]
 .storage-popup {
   max-height: min(600px, var(--available-height, calc(100dvh - 120px)));
   overflow-y: auto;
+}
+
+.library-pagination {
+  justify-content: space-between;
+  gap: 16px;
+}
+.library-pagination-info {
+  min-width: 0;
+}
+.library-pagination-info [role="status"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-variant-numeric: tabular-nums;
+}
+.library-pagination-controls {
+  flex: none;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.library-pagination-controls button {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+/* Keep page controls reachable without scrolling through the item grid. */
+.main-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+.main-shell > .topbar {
+  flex-shrink: 0;
+}
+.main-shell > .main-content {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+.library-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 8;
+  flex-shrink: 0;
+  border-top: 1px solid var(--workspace-border);
+  background: var(--color-kumo-canvas);
+  padding: 10px 36px calc(10px + env(safe-area-inset-bottom));
+}
+@media (max-width: 700px) {
+  .library-footer {
+    padding-inline: 16px;
+  }
 }

@@ -616,19 +616,6 @@ h1 {
   font-size: 13px;
   letter-spacing: 1px;
 }
-.preview-open {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  color: #c4c4c4;
-  border: 1px solid #49494966;
-  background: #161616cc;
-  border-radius: 2px;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-}
 .item-info {
   padding: 14px 15px 8px;
 }
@@ -1100,15 +1087,6 @@ h1 {
   .preview-content small {
     font-size: 8px;
   }
-  .preview-open {
-    width: 24px;
-    height: 24px;
-    right: 7px;
-    top: 7px;
-  }
-  .preview-open svg {
-    width: 14px;
-  }
   .collections-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
@@ -1162,14 +1140,6 @@ h1 {
   .button:active:not(:disabled):not(:focus-visible) {
     transform: none;
   }
-}
-
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 24px;
 }
 
 /* Press feedback remains immediate on touch and keyboard controls. */

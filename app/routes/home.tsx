@@ -23,7 +23,6 @@ import {
   type ReactNode,
 } from "react";
 import {
-  ArrowsOutIcon as Maximize2,
   DotsThreeIcon as MoreHorizontal,
   PencilSimpleIcon as Pencil,
   TrashIcon as Trash2,
@@ -60,6 +59,7 @@ import { CerberusMark } from "../components/cerberus-mark";
 import { useStorageUsage } from "../components/use-storage-usage";
 import { StorageMeter } from "../components/storage-meter";
 import { ThemeSwitcher } from "../components/theme-switcher";
+import { LibraryPagination } from "../components/library-pagination";
 import { LibrarySidebar } from "../components/library-sidebar";
 import { getStorageUsage } from "../lib/storage.server";
 import {
@@ -772,13 +772,13 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                           label={`Actions for ${item.title}`}
                           actions={itemMenu(item)}
                         >
-                          <label className="item-selection">
+                          <div className="item-selection">
                             <Checkbox
                               checked={selectedIds.includes(item.id)}
                               onCheckedChange={() => toggleItem(item.id)}
                               aria-label={`Select ${item.title}`}
                             />
-                          </label>
+                          </div>
                           <ItemCard
                             item={item}
                             collection={data.collections.find(
@@ -821,43 +821,19 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
                       )}
                     </div>
                   )}
-                  {(data.hasMore || data.page > 1) && (
-                    <nav className="pagination" aria-label="Library pages">
-                      {data.page > 1 ? (
-                        <Link
-                          className="button secondary"
-                          to={filterUrl(
-                            data.kind,
-                            data.selectedTags,
-                            data.page - 1,
-                          )}
-                        >
-                          Previous
-                        </Link>
-                      ) : (
-                        <span />
-                      )}
-                      <span className="quiet">Page {data.page}</span>
-                      {data.hasMore ? (
-                        <Link
-                          className="button secondary"
-                          to={filterUrl(
-                            data.kind,
-                            data.selectedTags,
-                            data.page + 1,
-                          )}
-                        >
-                          Next <ArrowRightIcon size={14} />
-                        </Link>
-                      ) : (
-                        <span />
-                      )}
-                    </nav>
-                  )}
                 </section>
               </>
             )}
           </main>
+          {!collectionsView && (data.hasMore || data.page > 1) && (
+            <footer className="library-footer" aria-label="Library pagination">
+              <LibraryPagination
+                page={data.page}
+                hasMore={data.hasMore}
+                toPage={(page) => filterUrl(data.kind, data.selectedTags, page)}
+              />
+            </footer>
+          )}
         </div>
 
         <SheetShell
@@ -1174,9 +1150,6 @@ function ItemCard({
             </small>
           </div>
         )}
-        <span className="preview-open">
-          <Maximize2 size={17} />
-        </span>
       </Button>
       <div className="item-info">
         <div className="item-title-row">
