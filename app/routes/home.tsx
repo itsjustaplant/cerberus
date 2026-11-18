@@ -357,6 +357,27 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
     data.focusedItem || data.items.find((item) => item.id === activeItemId);
   const navigate = useNavigate();
   const revalidator = useRevalidator();
+  useEffect(() => {
+    if (data.collection !== "inbox") return;
+
+    const refreshInbox = () => {
+      if (
+        document.visibilityState === "visible" &&
+        revalidator.state === "idle"
+      ) {
+        void revalidator.revalidate();
+      }
+    };
+
+    const interval = window.setInterval(refreshInbox, 15000);
+    window.addEventListener("focus", refreshInbox);
+    document.addEventListener("visibilitychange", refreshInbox);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshInbox);
+      document.removeEventListener("visibilitychange", refreshInbox);
+    };
+  }, [data.collection, revalidator]);
   const hasPendingArchives =
     !data.storage.ready ||
     [...data.items, ...(data.focusedItem ? [data.focusedItem] : [])].some(
