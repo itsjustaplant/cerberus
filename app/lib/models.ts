@@ -59,7 +59,18 @@ export interface TagCount {
 
 export const MAX_TWEET_PHOTOS = 16;
 
-export const STORAGE_LIMIT_BYTES = 10_000_000_000;
+// Decimal GB, matching R2's published allowance. Keep 0.5 GB in reserve.
+export const R2_STORAGE_ALLOWANCE_BYTES = 10_000_000_000;
+export const STORAGE_WARNING_BYTES = 9_000_000_000;
+export const STORAGE_LIMIT_BYTES = 9_500_000_000;
+
+export function storageLevel(
+  usedBytes: number,
+): "normal" | "warning" | "error" {
+  if (usedBytes >= STORAGE_LIMIT_BYTES) return "error";
+  if (usedBytes >= STORAGE_WARNING_BYTES) return "warning";
+  return "normal";
+}
 export interface StorageUsage {
   usedBytes: number;
   reservedBytes: number;

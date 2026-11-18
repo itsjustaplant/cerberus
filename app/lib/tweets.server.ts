@@ -317,7 +317,7 @@ export async function archiveTweet(
         operationBudgetExceeded
           ? "Post text saved. Images could not be archived because the storage operation budget is exhausted or unavailable. Retry after it recovers."
           : quotaExceeded
-            ? "Post text saved. Images could not be archived because the 10 GB storage limit is reached. Delete files and retry."
+            ? "Post text saved. Images could not be archived because the 9.5 GB storage safety limit is reached. Delete files and retry."
             : errors
               ? "Post text saved. Some images could not be archived. Retry to save missing images."
               : null,

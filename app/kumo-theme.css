@@ -1498,3 +1498,41 @@ html[data-input-modality="keyboard"]
     transition: none;
   }
 }
+
+/* Field labels and page storage alerts share Kumo's semantic theme colors. */
+.dialog-form label:not(.upload-field) {
+  display: block;
+  color: var(--color-kumo-default);
+}
+.dialog-form [aria-invalid="true"]:not([type="file"]) {
+  border-color: var(--color-kumo-danger);
+}
+.storage-limit-banner {
+  margin-bottom: 24px;
+  overflow-wrap: anywhere;
+}
+
+.topbar .storage-status-trigger {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.storage-status-badge {
+  gap: 6px;
+  padding: 5px 9px;
+}
+.storage-status-trigger:focus-visible {
+  outline: 2px solid var(--color-kumo-focus);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+@media (max-width: 767px) {
+  .storage-status-label {
+    display: none;
+  }
+}
+
+.storage-popup {
+  max-height: min(600px, var(--available-height, calc(100dvh - 120px)));
+  overflow-y: auto;
+}

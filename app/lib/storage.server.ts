@@ -1,5 +1,9 @@
 import { InputError } from "./validation.server";
-import { STORAGE_LIMIT_BYTES, type StorageUsage } from "./models";
+import {
+  R2_STORAGE_ALLOWANCE_BYTES,
+  STORAGE_LIMIT_BYTES,
+  type StorageUsage,
+} from "./models";
 import { R2BudgetError } from "./r2-budget.server";
 
 type Quota = {
@@ -10,7 +14,7 @@ type Quota = {
 export class StorageLimitError extends InputError {
   constructor() {
     super(
-      "The 10 GB storage limit has been reached. Delete files before adding more.",
+      "This upload would exceed the 9.5 GB safety limit. Delete files before adding more.",
       507,
     );
   }
@@ -20,7 +24,7 @@ async function quota(env: Env) {
   const row = await env.DB.prepare(
     "SELECT limit_bytes, charged_bytes, initialized FROM storage_quota WHERE id = 1",
   ).first<Quota>();
-  if (!row || row.limit_bytes !== STORAGE_LIMIT_BYTES)
+  if (!row || row.limit_bytes !== R2_STORAGE_ALLOWANCE_BYTES)
     throw new InputError(
       "Storage accounting is unavailable. Uploads are blocked.",
       503,
@@ -112,11 +116,20 @@ export async function reserveStorage(
   await initializeStorage(env);
   try {
     // A single SQLite statement plus the database trigger is the authoritative gate.
-    await env.DB.prepare(
-      "INSERT INTO storage_objects (object_key, owner_id, size, state, created_at) VALUES (?, ?, ?, 'reserved', ?)",
+    const result = await env.DB.prepare(
+      "INSERT INTO storage_objects (object_key, owner_id, size, state, created_at) SELECT ?, ?, ?, 'reserved', ? WHERE EXISTS (SELECT 1 FROM storage_quota WHERE id = 1 AND initialized = 1 AND ? <= MIN(limit_bytes, ?) - charged_bytes)",
     )
-      .bind(key, ownerId, size, new Date().toISOString())
+      .bind(
+        key,
+        ownerId,
+        size,
+        new Date().toISOString(),
+        size,
+        STORAGE_LIMIT_BYTES,
+      )
       .run();
+    // The conditional INSERT also protects databases awaiting the guard migration.
+    if (!result.meta.changes) throw new StorageLimitError();
   } catch (error) {
     if (error instanceof Error && error.message.includes("VAULT_STORAGE_LIMIT"))
       throw new StorageLimitError();

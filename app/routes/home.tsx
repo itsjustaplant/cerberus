@@ -1,6 +1,8 @@
 import { Input } from "../components/ui/input";
 import { TagField } from "../components/tag-field";
 import { Checkbox } from "@cloudflare/kumo/components/checkbox";
+import { Banner } from "@cloudflare/kumo/components/banner";
+import { Field } from "@cloudflare/kumo/components/field";
 import { Textarea } from "@cloudflare/kumo/components/input";
 import { Button } from "../components/ui/button";
 import { Tabs } from "@cloudflare/kumo/components/tabs";
@@ -14,7 +16,6 @@ import {
 } from "../components/action-context-menu";
 import {
   useEffect,
-  useId,
   useState,
   forwardRef,
   type FormEvent,
@@ -55,6 +56,7 @@ import { Select } from "@cloudflare/kumo/components/select";
 import { useKumoToastManager } from "@cloudflare/kumo/components/toast";
 import { collectionPath, itemPath } from "../lib/library-url";
 import { CerberusMark } from "../components/cerberus-mark";
+import { useStorageUsage } from "../components/use-storage-usage";
 import { StorageMeter } from "../components/storage-meter";
 import { ThemeSwitcher } from "../components/theme-switcher";
 import { LibrarySidebar } from "../components/library-sidebar";
@@ -204,6 +206,7 @@ type Modal = "collection" | "save" | null;
 type ItemDestination = Pick<Item, "id" | "collection_id">;
 
 export default function Home({ loaderData: data }: Route.ComponentProps) {
+  const storage = useStorageUsage(data.storage);
   const toastManager = useKumoToastManager();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
@@ -504,7 +507,7 @@ export default function Home({ loaderData: data }: Route.ComponentProps) {
             </LinkProvider>
             <div className="topbar-actions">
               <div className="header-cell">
-                <StorageMeter usage={data.storage} />
+                <StorageMeter usage={storage} />
               </div>
               <div className="header-cell">
                 <Button
@@ -1276,29 +1279,26 @@ function CreateCollection({ onSave }: { onSave: (id: string) => void }) {
   }
   return (
     <form className="dialog-form" onSubmit={submit}>
-      <label>
-        Collection name
-        <Input
-          name="name"
-          required
-          maxLength={80}
-          placeholder="Collection name"
-          autoComplete="off"
-        />
-      </label>
-      <label>
-        Description <span className="optional">optional</span>
-        <Textarea
-          name="description"
-          maxLength={240}
-          rows={2}
-          placeholder="Description"
-        />
-      </label>
+      <Input
+        label="Collection name"
+        description="Use a short name, up to 80 characters."
+        name="name"
+        required
+        maxLength={80}
+        placeholder="Collection name"
+        autoComplete="off"
+      />
+      <Textarea
+        label="Description"
+        required={false}
+        description="A short description, up to 240 characters."
+        name="description"
+        maxLength={240}
+        rows={2}
+        placeholder="Description"
+      />
       {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        <Banner variant="error" size="sm" role="alert" description={error} />
       )}
       <Button disabled={busy} className="button primary form-submit">
         {busy ? "Creating…" : "Create collection"}
@@ -1317,7 +1317,6 @@ function CollectionSelect({
   selected: string;
   label?: string;
 }) {
-  const id = useId();
   const container = useSheetPortal();
   const options = collections.map((c) => ({
     value: c.id,
@@ -1325,14 +1324,13 @@ function CollectionSelect({
   }));
   return (
     <div className="collection-select-field">
-      <label id={id}>{label}</label>
       <Select
+        label={label}
         container={container}
         name="collection_id"
         defaultValue={selected || null}
         items={options}
         required
-        aria-labelledby={id}
         placeholder="Choose a collection"
         className="collection-kumo-select"
         alignItemWithTrigger={false}
@@ -1360,13 +1358,14 @@ function SaveItem({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [filename, setFilename] = useState("");
+  const [fileError, setFileError] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     const form = new FormData(event.currentTarget);
     const file = form.get("file");
     if (file instanceof File && file.size > MAX_FILE_SIZE) {
-      setError("Choose a file that is 10 MB or smaller.");
+      setFileError("Choose a file that is 10 MB or smaller.");
       return;
     }
     setBusy(true);
@@ -1394,6 +1393,7 @@ function SaveItem({
           onValueChange={(value) => {
             if (busy) return;
             setMode(value as "link" | "file");
+            setFileError("");
             if (value === "file") setFilename("");
             setError("");
           }}
@@ -1421,41 +1421,58 @@ function SaveItem({
       </div>
       <form className="dialog-form" onSubmit={submit}>
         {mode === "link" ? (
-          <label>
-            URL
-            <Input
-              name="url"
-              type="url"
-              required
-              maxLength={4096}
-              placeholder="https://example.com"
-              autoCapitalize="none"
-              autoCorrect="off"
-            />
-          </label>
+          <Input
+            label="URL"
+            description="Paste a full http:// or https:// link."
+            name="url"
+            type="url"
+            required
+            maxLength={4096}
+            placeholder="https://example.com"
+            autoCapitalize="none"
+            autoCorrect="off"
+          />
         ) : (
-          <label className="upload-field">
-            <Upload size={24} />
-            <strong>{filename || "Choose an image or file"}</strong>
-            <span>Any file, up to 10 MB</span>
-            <Input
-              name="file"
-              type="file"
-              required
-              onChange={(e) => setFilename(e.target.files?.[0]?.name || "")}
-            />
-          </label>
+          <Field
+            label="Image or file"
+            required
+            description="Choose any file, up to 10 MB."
+            error={fileError ? { message: fileError, match: true } : undefined}
+          >
+            <label className="upload-field">
+              <Upload size={24} />
+              <strong>{filename || "Choose an image or file"}</strong>
+              <Input
+                name="file"
+                type="file"
+                required
+                aria-label="Image or file"
+                aria-invalid={!!fileError}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  setFilename(file?.name || "");
+                  setFileError(
+                    file && file.size > MAX_FILE_SIZE
+                      ? "Choose a file that is 10 MB or smaller."
+                      : "",
+                  );
+                }}
+              />
+            </label>
+          </Field>
         )}
-        <label>
-          Title <span className="optional">optional</span>
-          <Input name="title" maxLength={200} placeholder="Title" />
-        </label>
-        <TagField label="Tags (optional)" disabled={busy} />
+        <Input
+          label="Title"
+          required={false}
+          description="Up to 200 characters. Leave empty to use the link or filename."
+          name="title"
+          maxLength={200}
+          placeholder="Title"
+        />
+        <TagField label="Tags" disabled={busy} />
         <CollectionSelect collections={collections} selected={selected} />
         {error && (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
+          <Banner variant="error" size="sm" role="alert" description={error} />
         )}
         <Button disabled={busy} className="button primary form-submit">
           {busy ? "Saving…" : "Save to Cerberus"}
@@ -1498,9 +1515,7 @@ function MoveItem({
         selected={item.collection_id}
       />
       {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        <Banner variant="error" size="sm" role="alert" description={error} />
       )}
       <Button className="button primary form-submit" disabled={busy}>
         {busy ? "Moving…" : "Move item"}
@@ -1535,9 +1550,7 @@ function EditTags({ item, onSave }: { item: Item; onSave: () => void }) {
         description="Press Enter or comma to add a tag. Up to 10 tags, 32 characters each. Remove all tags to clear them."
       />
       {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        <Banner variant="error" size="sm" role="alert" description={error} />
       )}
       <Button className="button primary form-submit" disabled={busy}>
         {busy ? "Saving…" : "Save tags"}
@@ -1573,9 +1586,7 @@ function DeleteItem({
     <div className="delete-confirm">
       <p className="delete-item-title">{item.title}</p>
       {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        <Banner variant="error" size="sm" role="alert" description={error} />
       )}
       <div className="delete-actions">
         <Button className="button secondary" disabled={busy} onClick={cancel}>
@@ -1662,15 +1673,14 @@ function CollectionManagement({
   return (
     <form className="dialog-form" onSubmit={submit}>
       {mode === "rename" ? (
-        <label>
-          Collection name
-          <Input
-            name="name"
-            required
-            maxLength={80}
-            defaultValue={collection.name}
-          />
-        </label>
+        <Input
+          label="Collection name"
+          description="Up to 80 characters."
+          name="name"
+          required
+          maxLength={80}
+          defaultValue={collection.name}
+        />
       ) : (
         <>
           <p>
@@ -1688,9 +1698,7 @@ function CollectionManagement({
         </>
       )}
       {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        <Banner variant="error" size="sm" role="alert" description={error} />
       )}
       <Button className="button primary form-submit" disabled={busy}>
         {busy
@@ -1726,19 +1734,16 @@ function RenameItem({ item, onSave }: { item: Item; onSave: () => void }) {
   }
   return (
     <form className="dialog-form" onSubmit={submit}>
-      <label>
-        Item name
-        <Input
-          name="title"
-          maxLength={200}
-          required
-          defaultValue={item.title}
-        />
-      </label>
+      <Input
+        label="Item name"
+        description="Up to 200 characters."
+        name="title"
+        maxLength={200}
+        required
+        defaultValue={item.title}
+      />
       {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        <Banner variant="error" size="sm" role="alert" description={error} />
       )}
       <Button className="button primary form-submit" disabled={busy}>
         {busy ? "Saving…" : "Save name"}
@@ -1804,9 +1809,7 @@ function BulkItemForm({
         </p>
       )}
       {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        <Banner variant="error" size="sm" role="alert" description={error} />
       )}
       <Button
         className="button primary form-submit"

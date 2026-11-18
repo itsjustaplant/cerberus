@@ -1,13 +1,16 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Popover } from "@cloudflare/kumo/components/popover";
+import { Badge } from "@cloudflare/kumo/components/badge";
 import { Meter } from "@cloudflare/kumo/components/meter";
 import { Tooltip } from "@cloudflare/kumo/components/tooltip";
 import { Button } from "./ui/button";
 import {
   CaretDownIcon as ChevronDown,
   XIcon as X,
+  WarningCircleIcon,
 } from "@phosphor-icons/react";
-import type { StorageUsage } from "../lib/models";
+import { storageLevel, type StorageUsage } from "../lib/models";
+import { StorageBanner, STORAGE_NOTICE_TITLES } from "./storage-banner";
 
 function formatBytes(bytes: number) {
   if (bytes < 1000) return `${bytes} B`;
@@ -24,38 +27,9 @@ export function StorageMeter({
   placement?: "header" | "sidebar";
 }) {
   const [highlight, setHighlight] = useState<string | null>(null);
-  const [live, setLive] = useState<StorageUsage | null>(null);
-  useEffect(() => {
-    setLive(null);
-  }, [usage]);
-  useEffect(() => {
-    let active = true;
-    const controller = new AbortController();
-    async function refresh() {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const response = await fetch("/api/storage", {
-          signal: controller.signal,
-        });
-        if (!response.ok) return;
-        const result = (await response.json()) as { storage: StorageUsage };
-        if (active) setLive(result.storage);
-      } catch {
-        /* Keep the last known reading. The server still enforces the quota. */
-      }
-    }
-    const interval = setInterval(() => {
-      void refresh();
-    }, 15000);
-    window.addEventListener("focus", refresh);
-    return () => {
-      active = false;
-      controller.abort();
-      clearInterval(interval);
-      window.removeEventListener("focus", refresh);
-    };
-  }, []);
-  const current = live || usage;
+  const current = usage;
+  const level = storageLevel(current.usedBytes);
+  const noticeTitle = level === "normal" ? "" : STORAGE_NOTICE_TITLES[level];
   const label = current.ready
     ? `${formatBytes(current.usedBytes)} / ${formatBytes(current.limitBytes)}`
     : "Checking storage…";
@@ -90,15 +64,33 @@ export function StorageMeter({
   return (
     <Popover.Root onOpenChange={() => setHighlight(null)}>
       <Popover.Trigger
-        className="storage-trigger"
-        aria-label={`Storage details: ${label}${reserved}`}
+        className={`storage-trigger ${level !== "normal" ? "storage-status-trigger" : ""}`}
+        aria-label={`${noticeTitle ? noticeTitle + ". " : ""}Storage details: ${label}${reserved}`}
       >
-        <span className="storage-trigger-label">Storage</span>
-        {bar(true)}
-        <span className="storage-trigger-amount">
-          {current.ready ? formatBytes(current.usedBytes) : "Checking…"}
-        </span>
-        <ChevronDown size={12} />
+        {level === "normal" ? (
+          <>
+            <span className="storage-trigger-label">Storage</span>
+            {bar(true)}
+            <span className="storage-trigger-amount">
+              {current.ready ? formatBytes(current.usedBytes) : "Checking…"}
+            </span>
+            <ChevronDown size={12} />
+          </>
+        ) : (
+          <Badge variant={level} className="storage-status-badge">
+            <WarningCircleIcon size={14} aria-hidden="true" />
+            <span className="storage-status-label">
+              {level === "error" ? "Storage full" : "Almost full"}
+            </span>
+            <span>{formatBytes(current.usedBytes)}</span>
+            <ChevronDown size={12} aria-hidden="true" />
+          </Badge>
+        )}
+        {noticeTitle && (
+          <span className="sr-only" role="status">
+            {noticeTitle}
+          </span>
+        )}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner
@@ -123,6 +115,7 @@ export function StorageMeter({
                 }
               />
             </header>
+            <StorageBanner usage={current} />
             <div className="storage-summary">
               <strong>
                 {current.ready ? formatBytes(current.usedBytes) : "Checking…"}

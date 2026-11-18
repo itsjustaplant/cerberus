@@ -582,7 +582,7 @@ try {
   assert.ok(limited, "Capture rate limit should reject excess requests");
   const quotaBefore = (await (await fetch(base + "/api/storage")).json())
     .storage;
-  assert.equal(quotaBefore.limitBytes, 10_000_000_000);
+  assert.equal(quotaBefore.limitBytes, 9_500_000_000);
   assert.ok(quotaBefore.ready);
   const seeded = await fetch(
     base +
@@ -591,12 +591,14 @@ try {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sql: "INSERT INTO storage_objects (object_key, owner_id, size, state, created_at) SELECT 'quota-test-existing', 'quota-test', limit_bytes - charged_bytes - 16, 'stored', ? FROM storage_quota WHERE id = 1",
+        sql: "INSERT INTO storage_objects (object_key, owner_id, size, state, created_at) SELECT 'quota-test-existing', 'quota-test', MIN(limit_bytes, 9500000000) - charged_bytes - 16, 'stored', ? FROM storage_quota WHERE id = 1",
         params: [new Date().toISOString()],
       }),
     },
   );
   assert.ok(seeded.ok, await seeded.text());
+  const warningPage = await (await fetch(base + "/")).text();
+  assert.ok(warningPage.includes("Storage is almost full"));
   const uploads = await Promise.all(
     Array.from({ length: 12 }, async (_, n) => {
       const form = new FormData();
@@ -611,12 +613,14 @@ try {
   assert.equal(uploads.filter((upload) => upload.status === 201).length, 4);
   assert.equal(uploads.filter((upload) => upload.status === 507).length, 8);
   const full = (await (await fetch(base + "/api/storage")).json()).storage;
-  assert.equal(full.usedBytes, 10_000_000_000);
+  assert.equal(full.usedBytes, 9_500_000_000);
+  const blockedPage = await (await fetch(base + "/")).text();
+  assert.ok(blockedPage.includes("Storage safety limit reached"));
   const successful = uploads.find((upload) => upload.status === 201);
   await api(`/api/items/${successful.body.item.id}`, {}, 200, "DELETE");
   const afterDelete = (await (await fetch(base + "/api/storage")).json())
     .storage;
-  assert.equal(afterDelete.usedBytes, 9_999_999_996);
+  assert.equal(afterDelete.usedBytes, 9_499_999_996);
   const exact = new FormData();
   exact.set("file", new File([new Uint8Array(4)], "last-four.bin"));
   await api("/api/items", exact);
@@ -624,7 +628,7 @@ try {
   extraByte.set("file", new File([new Uint8Array(1)], "over.bin"));
   await api("/api/items", extraByte, 507);
   console.log(
-    "PASS: strict 10 GB quota under concurrent HTTP uploads, exact boundary, and deletion recovery.",
+    "PASS: strict 9.5 GB quota under concurrent HTTP uploads, exact boundary, and deletion recovery.",
   );
   // Exhaust the operation budgets in the disposable database, never production.
   await api(`/api/items/${image.id}`, {}, 200, "DELETE");

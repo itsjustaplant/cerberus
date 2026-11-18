@@ -9,7 +9,11 @@ import {
   deleteStoredObjects,
   StorageLimitError,
 } from "../app/lib/storage.server";
-import { STORAGE_LIMIT_BYTES } from "../app/lib/models";
+import {
+  STORAGE_LIMIT_BYTES,
+  STORAGE_WARNING_BYTES,
+  storageLevel,
+} from "../app/lib/models";
 import { createFile } from "../app/lib/vault.server";
 import { archiveTweet, getTweetArchive } from "../app/lib/tweets.server";
 import { deleteItem, cleanupDeletedObjects } from "../app/lib/deletion.server";
@@ -19,6 +23,47 @@ import {
   reserveR2Operation,
   withR2Budget,
 } from "../app/lib/r2-budget.server";
+
+test("storage banners switch at the exact decimal GB thresholds", () => {
+  assert.equal(STORAGE_WARNING_BYTES, 9_000_000_000);
+  assert.equal(STORAGE_LIMIT_BYTES, 9_500_000_000);
+  assert.equal(storageLevel(8_999_999_999), "normal");
+  assert.equal(storageLevel(9_000_000_000), "warning");
+  assert.equal(storageLevel(9_499_999_999), "warning");
+  assert.equal(storageLevel(9_500_000_000), "error");
+  assert.equal(storageLevel(10_000_000_001), "error");
+});
+
+test("the atomic helper enforces the buffer even before the new trigger is applied", async () => {
+  const { env, sql, files } = await nearLimit(0);
+  sql.exec("DROP TRIGGER storage_reservation_guard");
+  await assert.rejects(createFile(env, fileForm(1)), StorageLimitError);
+  assert.equal(files.size, 0);
+  assert.equal((await getStorageUsage(env)).usedBytes, STORAGE_LIMIT_BYTES);
+  sql.close();
+});
+
+test("existing storage above the safety limit stays accounted and can be deleted", async () => {
+  const { env, sql } = fixture(false);
+  await initializeStorage(env);
+  sql
+    .prepare(
+      "INSERT INTO storage_objects VALUES ('old', 'owner', 9700000000, 'stored', ?)",
+    )
+    .run(new Date().toISOString());
+  const usage = await getStorageUsage(env);
+  assert.equal(usage.usedBytes, 9_700_000_000);
+  assert.equal(usage.limitBytes, 9_500_000_000);
+  assert.equal(usage.ready, true);
+  await assert.rejects(
+    reserveStorage(env, "owner", "new", 1),
+    StorageLimitError,
+  );
+  await deleteStoredObjects(env, ["old"]);
+  assert.equal((await getStorageUsage(env)).usedBytes, 0);
+  await reserveStorage(env, "owner", "new", 1);
+  sql.close();
+});
 
 test("monthly operation budgets admit only the last available concurrent operation and reset in UTC", async () => {
   const { env, sql } = fixture(false);
@@ -114,7 +159,7 @@ test("inventories older R2 objects, including untracked keys, before allowing a 
   const usage = await getStorageUsage(env);
   assert.equal(usage.ready, true);
   assert.equal(usage.usedBytes, 12);
-  assert.equal(usage.limitBytes, 10000000000);
+  assert.equal(usage.limitBytes, 9_500_000_000);
   await initializeStorage(env);
   assert.equal((await getStorageUsage(env)).usedBytes, 12);
   sql.close();
@@ -134,7 +179,7 @@ test("blocks uploads if the initial inventory cannot be checked", async () => {
   assert.equal((await getStorageUsage(env)).ready, false);
   sql.close();
 });
-test("accepts the exact last bytes and rejects one byte beyond the 10 GB cap before R2", async () => {
+test("accepts the exact last bytes and rejects one byte beyond the 9.5 GB cap before R2", async () => {
   const { env, sql, files } = await nearLimit(8);
   await createFile(env, fileForm(8));
   assert.equal((await getStorageUsage(env)).usedBytes, STORAGE_LIMIT_BYTES);
@@ -275,7 +320,7 @@ test("tweet photos share the quota; the post text survives when images cannot fi
   const archive = await getTweetArchive(env, "post");
   assert.equal(archive?.status, "partial");
   assert.equal(archive.post_text, "Preserve this text");
-  assert.match(archive.error!, /10 GB/);
+  assert.match(archive.error!, /9\.5 GB/);
   assert.equal(files.size, 0);
   sql.close();
 });

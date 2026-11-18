@@ -92,14 +92,15 @@ uploaded R2 object. Changing an item’s collection does not duplicate its file.
 
 ## Strict file storage cap
 
-Cerberus enforces a total **10 GB = 10,000,000,000 bytes** limit across uploaded
+Cerberus warns at **9 GB** and enforces a total **9.5 GB = 9,500,000,000 bytes** safety limit (leaving 0.5 GB below the 10 GB allowance) across uploaded
 files, images, and archived tweet photos in the shared R2 bucket. The top bar
 shows charged storage against this cap, including in-flight reservations.
 Usage refreshes after saves/deletes and periodically while the page is visible.
 The existing 10 MB per-file limit also remains in place.
 
-Apply `0005_storage_quota.sql` before running this version. On first use, Cerberus
-inventories R2, including objects absent from item metadata. Uploads are blocked
+Apply migrations through `0007_storage_safety_buffer.sql` before deployment.
+The new migration preserves existing data and tightens the database guard.
+On first use, Cerberus inventories R2, including objects absent from item metadata. Uploads are blocked
 until the inventory is verified. Reservations use an atomic D1 insert guarded by
 a database trigger; all R2 writes go through this gate and reserve the exact
 upload buffer size. Concurrent requests cannot spend the same remaining bytes.
